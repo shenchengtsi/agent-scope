@@ -51,6 +51,7 @@ class TraceData(BaseModel):
     total_latency_ms: float = 0.0
     input_query: str = ""
     output_result: str = ""
+    metadata: dict = {}
 
 
 @asynccontextmanager

@@ -91,6 +91,7 @@ class TraceEvent:
     total_latency_ms: float = 0.0
     input_query: str = ""
     output_result: str = ""
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def add_step(self, step: ExecutionStep):
         """Add a step to the trace."""
@@ -117,6 +118,7 @@ class TraceEvent:
             "total_latency_ms": self.total_latency_ms,
             "input_query": self.input_query,
             "output_result": self.output_result,
+            "metadata": self.metadata,
         }
 
     def to_json(self) -> str:
