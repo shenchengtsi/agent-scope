@@ -46,7 +46,7 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: |
         cd sdk
-        twine upload dist/*
+        twine upload --verbose dist/*
         echo "✅ Published to PyPI"
 
   create-release:
