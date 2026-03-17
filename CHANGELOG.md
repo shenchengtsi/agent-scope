@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-03-17
+
+### Added
+
+- **Comprehensive Monitoring Coverage**: 11 monitoring categories for nanobot integration
+  - Prompt building monitoring (`add_prompt_building_step`)
+  - Context window management (`add_context_window_step`)
+  - Retry logic tracking (`add_retry_step`)
+  - Rate limit monitoring (`add_rate_limit_step`)
+  - Session lifecycle tracking (`add_session_lifecycle_step`)
+  - Skill loading monitoring (`add_skill_loading_step`)
+- **Enhanced Error Handling**: Detailed validation error reporting in backend
+- **Debug Endpoint**: `/api/traces/raw` for raw trace debugging
+- **Documentation**: Complete monitoring coverage guide (`docs/monitoring-coverage.md`)
+
+### Fixed
+
+- **Backend**: Relaxed Pydantic model constraints for `ToolCallData` and `ExecutionStepData`
+  - `result` and `error` fields now accept `Any` type instead of strict `str`
+  - `content` field now accepts `Any` type for flexible data
+- **SDK**: Enhanced error logging in `_send_trace` with response details
+
+### Changed
+
+- **Backend**: Added exception handler for `RequestValidationError` with detailed output
+- **Backend**: Wrapped `create_trace` in try-except for better error tracking
+
 ## [0.1.0] - 2026-03-17
 
 ### Added

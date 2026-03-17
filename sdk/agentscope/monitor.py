@@ -65,6 +65,11 @@ def _send_trace(trace: TraceEvent):
         )
         if response.status_code != 200:
             logger.warning(f"Failed to send trace: {response.status_code}")
+            try:
+                error_detail = response.json()
+                logger.warning(f"Error detail: {error_detail}")
+            except:
+                logger.warning(f"Response text: {response.text[:200]}")
     except Exception as e:
         logger.warning(f"Failed to send trace: {e}")
 

@@ -3,12 +3,14 @@
 import json
 import asyncio
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import os
 
@@ -21,15 +23,15 @@ class ToolCallData(BaseModel):
     id: str
     name: str
     arguments: dict
-    result: Optional[str] = None
-    error: Optional[str] = None
+    result: Optional[Any] = None
+    error: Optional[Any] = None
     latency_ms: float = 0.0
 
 
 class ExecutionStepData(BaseModel):
     id: str
     type: str
-    content: str
+    content: Any
     timestamp: str
     tokens_input: int = 0
     tokens_output: int = 0
@@ -79,6 +81,16 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle validation errors with detailed output."""
+    print(f"Validation error: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": exc.body}
+    )
+
+
 async def broadcast_trace(trace: dict):
     """Broadcast trace update to all connected WebSocket clients."""
     disconnected = []
@@ -126,13 +138,33 @@ async def get_trace(trace_id: str):
 @app.post("/api/traces")
 async def create_trace(trace: TraceData):
     """Create or update a trace."""
-    trace_dict = trace.model_dump()
-    traces[trace.id] = trace_dict
-    
-    # Broadcast to WebSocket clients
-    await broadcast_trace(trace_dict)
-    
-    return {"status": "ok", "id": trace.id}
+    try:
+        trace_dict = trace.model_dump()
+        traces[trace.id] = trace_dict
+        
+        # Broadcast to WebSocket clients
+        await broadcast_trace(trace_dict)
+        
+        return {"status": "ok", "id": trace.id}
+    except Exception as e:
+        import traceback
+        print(f"ERROR in create_trace: {e}")
+        traceback.print_exc()
+        raise
+
+
+@app.post("/api/traces/raw")
+async def create_trace_raw(request: Request):
+    """Create or update a trace from raw JSON (for debugging)."""
+    try:
+        data = await request.json()
+        trace_id = data.get("id", "unknown")
+        traces[trace_id] = data
+        await broadcast_trace(data)
+        return {"status": "ok", "id": trace_id}
+    except Exception as e:
+        print(f"Error in raw trace: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 @app.delete("/api/traces/{trace_id}")
