@@ -3,12 +3,14 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import Header from '../components/Header';
 import TraceList from '../components/TraceList';
 import TraceTimeline from '../components/TraceTimeline';
+import WorkflowVisualizer from '../components/WorkflowVisualizer';
 import StepDetail from '../components/StepDetail';
 
 function Dashboard() {
   const { traces, isConnected, clearAllTraces } = useWebSocket();
   const [selectedTrace, setSelectedTrace] = useState(null);
   const [selectedStep, setSelectedStep] = useState(null);
+  const [viewMode, setViewMode] = useState('workflow'); // 'timeline' or 'workflow'
 
   const handleSelectTrace = (trace) => {
     setSelectedTrace(trace);
@@ -37,31 +39,61 @@ function Dashboard() {
           />
         </div>
 
-        {/* Center panel - Timeline */}
+        {/* Center panel - Timeline/Workflow */}
         <div style={styles.centerPanel}>
           {selectedTrace ? (
             <>
               <div style={styles.traceHeader}>
-                <h2 style={styles.traceTitle}>{selectedTrace.name}</h2>
-                <div style={styles.traceMeta}>
-                  <span style={styles.traceId}>ID: {selectedTrace.id}</span>
-                  <span 
+                <div style={styles.traceHeaderLeft}>
+                  <h2 style={styles.traceTitle}>{selectedTrace.name}</h2>
+                  <div style={styles.traceMeta}>
+                    <span style={styles.traceId}>ID: {selectedTrace.id}</span>
+                    <span 
+                      style={{
+                        ...styles.traceStatus,
+                        color: selectedTrace.status === 'success' ? '#10b981' : 
+                               selectedTrace.status === 'error' ? '#ef4444' : '#3b82f6',
+                      }}
+                    >
+                      {selectedTrace.status}
+                    </span>
+                  </div>
+                </div>
+                <div style={styles.viewToggle}>
+                  <button
                     style={{
-                      ...styles.traceStatus,
-                      color: selectedTrace.status === 'success' ? '#10b981' : 
-                             selectedTrace.status === 'error' ? '#ef4444' : '#3b82f6',
+                      ...styles.toggleButton,
+                      ...(viewMode === 'timeline' ? styles.toggleButtonActive : {}),
                     }}
+                    onClick={() => setViewMode('timeline')}
                   >
-                    {selectedTrace.status}
-                  </span>
+                    📋 Timeline
+                  </button>
+                  <button
+                    style={{
+                      ...styles.toggleButton,
+                      ...(viewMode === 'workflow' ? styles.toggleButtonActive : {}),
+                    }}
+                    onClick={() => setViewMode('workflow')}
+                  >
+                    🔄 Workflow
+                  </button>
                 </div>
               </div>
               <div style={styles.timelineContainer}>
-                <TraceTimeline 
-                  steps={selectedTrace.steps}
-                  onStepClick={handleSelectStep}
-                  selectedStep={selectedStep}
-                />
+                {viewMode === 'timeline' ? (
+                  <TraceTimeline 
+                    steps={selectedTrace.steps}
+                    onStepClick={handleSelectStep}
+                    selectedStep={selectedStep}
+                  />
+                ) : (
+                  <WorkflowVisualizer
+                    steps={selectedTrace.steps}
+                    onStepClick={handleSelectStep}
+                    selectedStep={selectedStep}
+                  />
+                )}
               </div>
             </>
           ) : (
@@ -115,6 +147,31 @@ const styles = {
     padding: '16px 20px',
     borderBottom: '1px solid #222',
     backgroundColor: '#0d0d0d',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  traceHeaderLeft: {
+    flex: 1,
+  },
+  viewToggle: {
+    display: 'flex',
+    gap: '8px',
+  },
+  toggleButton: {
+    padding: '8px 16px',
+    borderRadius: '6px',
+    border: '1px solid #333',
+    backgroundColor: '#1a1a1a',
+    color: '#9ca3af',
+    fontSize: '13px',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+  toggleButtonActive: {
+    backgroundColor: '#3b82f6',
+    color: '#fff',
+    borderColor: '#3b82f6',
   },
   traceTitle: {
     fontSize: '16px',

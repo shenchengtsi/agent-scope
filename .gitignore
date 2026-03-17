@@ -57,3 +57,8 @@ coverage/
 backend/data/
 *.db
 *.sqlite3
+
+# Logs
+*.log
+backend.log
+frontend.log
