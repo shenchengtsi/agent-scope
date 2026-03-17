@@ -2,7 +2,7 @@
 
 > **"Observe Every Thought, Debug Every Step"** — Lightweight, framework-agnostic observability for AI Agents
 
-[![PyPI](https://img.shields.io/pypi/v/agentscope.svg)](https://pypi.org/project/agentscope/)
+[![PyPI](https://img.shields.io/pypi/v/agent-scope.svg)](https://pypi.org/project/agent-scope/)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
@@ -83,7 +83,7 @@ Works with any Python Agent framework:
 Install the SDK in your agent project:
 
 ```bash
-pip install agentscope
+pip install agent-scope
 ```
 
 Then start the backend and frontend separately:

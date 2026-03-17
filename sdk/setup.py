@@ -4,8 +4,8 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="agentscope",
-    version="0.1.0",
+    name="agent-scope",
+    version="0.2.0",
     packages=find_packages(),
     install_requires=[
         "requests>=2.28.0",
