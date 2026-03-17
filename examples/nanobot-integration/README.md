@@ -302,6 +302,136 @@ def add_memory_step(action: str, details: str):
         logger.debug(f"AgentScope: Failed to add memory step: {e}")
 
 
+def add_prompt_building_step(
+    system_prompt: str,
+    history_count: int,
+    context_length: int,
+    max_context: int
+):
+    """Record prompt building step."""
+    if not _AGENTSCOPE_AVAILABLE:
+        return
+    
+    try:
+        usage_percent = (context_length / max_context * 100) if max_context > 0 else 0
+        content = f"Building final prompt for LLM\n"
+        content += f"- System prompt: {len(system_prompt)} chars\n"
+        content += f"- History messages: {history_count}\n"
+        content += f"- Context size: {context_length}/{max_context} ({usage_percent:.1f}%)\n"
+        
+        if usage_percent > 80:
+            content += "⚠️ Warning: Context window usage high!"
+        
+        add_thinking(content)
+    except Exception as e:
+        logger.debug(f"AgentScope: Failed to add prompt building step: {e}")
+
+
+def add_context_window_step(
+    operation: str,
+    original_count: int,
+    new_count: int,
+    reason: str
+):
+    """Record context window management operation."""
+    if not _AGENTSCOPE_AVAILABLE:
+        return
+    
+    try:
+        reduction = original_count - new_count
+        content = f"Context window management: {operation}\n"
+        content += f"- Messages: {original_count} → {new_count} ({reduction} removed)\n"
+        content += f"- Reason: {reason}"
+        
+        add_thinking(content)
+    except Exception as e:
+        logger.debug(f"AgentScope: Failed to add context window step: {e}")
+
+
+def add_retry_step(
+    attempt: int,
+    max_attempts: int,
+    error_type: str,
+    delay: float,
+    will_retry: bool
+):
+    """Record retry attempt."""
+    if not _AGENTSCOPE_AVAILABLE:
+        return
+    
+    try:
+        content = f"LLM call retry: attempt {attempt}/{max_attempts}\n"
+        content += f"- Error: {error_type}\n"
+        content += f"- Delay: {delay}s\n"
+        content += f"- Will retry: {will_retry}"
+        
+        add_thinking(content)
+    except Exception as e:
+        logger.debug(f"AgentScope: Failed to add retry step: {e}")
+
+
+def add_rate_limit_step(
+    limit_type: str,
+    current_usage: int,
+    limit: int,
+    wait_time: float = 0
+):
+    """Record rate limit event."""
+    if not _AGENTSCOPE_AVAILABLE:
+        return
+    
+    try:
+        usage_percent = (current_usage / limit * 100) if limit > 0 else 0
+        content = f"Rate limit check: {limit_type}\n"
+        content += f"- Usage: {current_usage}/{limit} ({usage_percent:.1f}%)\n"
+        
+        if wait_time > 0:
+            content += f"- Throttled: waited {wait_time:.1f}s"
+        
+        add_thinking(content)
+    except Exception as e:
+        logger.debug(f"AgentScope: Failed to add rate limit step: {e}")
+
+
+def add_session_lifecycle_step(
+    event: str,
+    session_key: str,
+    details: str = ""
+):
+    """Record session lifecycle event."""
+    if not _AGENTSCOPE_AVAILABLE:
+        return
+    
+    try:
+        content = f"Session {event}: {session_key}\n"
+        if details:
+            content += f"Details: {details}"
+        
+        add_thinking(content)
+    except Exception as e:
+        logger.debug(f"AgentScope: Failed to add session lifecycle step: {e}")
+
+
+def add_skill_loading_step(
+    skills: List[str],
+    loaded_count: int,
+    failed_count: int,
+    total_time_ms: float
+):
+    """Record skill loading operation."""
+    if not _AGENTSCOPE_AVAILABLE:
+        return
+    
+    try:
+        content = f"Loading skills: {', '.join(skills)}\n"
+        content += f"- Success: {loaded_count}, Failed: {failed_count}\n"
+        content += f"- Load time: {total_time_ms:.1f}ms"
+        
+        add_thinking(content)
+    except Exception as e:
+        logger.debug(f"AgentScope: Failed to add skill loading step: {e}")
+
+
 class TraceContext:
     """Context manager for tracing (now wraps trace_scope for Scheme 3)."""
     
@@ -351,6 +481,12 @@ __all__ = [
     'add_tool_execution_step',
     'add_skill_trigger_step',
     'add_memory_step',
+    'add_prompt_building_step',
+    'add_context_window_step',
+    'add_retry_step',
+    'add_rate_limit_step',
+    'add_session_lifecycle_step',
+    'add_skill_loading_step',
     'TraceContext',
     'instrument_llm',
     'instrumented_tool',
