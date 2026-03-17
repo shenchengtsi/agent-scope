@@ -2,6 +2,7 @@
 
 > **"Observe Every Thought, Debug Every Step"** — Lightweight, framework-agnostic observability for AI Agents
 
+[![PyPI](https://img.shields.io/pypi/v/agentscope.svg)](https://pypi.org/project/agentscope/)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
@@ -77,15 +78,40 @@ Works with any Python Agent framework:
 
 ## 🚀 Quick Start
 
-### 1. Start the Backend
+### Option A: Using PyPI (Recommended for Users)
+
+Install the SDK in your agent project:
 
 ```bash
-# Clone the repository
+pip install agentscope
+```
+
+Then start the backend and frontend separately:
+
+```bash
+# Clone only backend & frontend
 git clone https://github.com/shenchengtsi/agent-scope.git
 cd agentscope
 
-# Install and start backend
+# Start backend
 cd backend
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+### Option B: Full Development Setup
+
+```bash
+# Clone the entire repository
+git clone https://github.com/shenchengtsi/agent-scope.git
+cd agentscope
+
+# Install SDK in development mode
+cd sdk
+pip install -e .
+
+# Install and start backend
+cd ../backend
 pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
