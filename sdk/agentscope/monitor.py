@@ -17,7 +17,11 @@ from contextvars import ContextVar
 from contextlib import contextmanager
 from datetime import datetime
 
-from .models import TraceEvent, ExecutionStep, ToolCall, StepType, Status
+from .models import (
+    TraceEvent, ExecutionStep, ToolCall, StepType, Status,
+    SkillInfo, PromptMessage, PromptBuildInfo, ToolSelectionInfo,
+    MemoryOperationInfo, SubAgentCallInfo, ReasoningInfo,
+)
 
 # Global configuration
 _monitor_url: Optional[str] = None
@@ -535,3 +539,359 @@ def add_memory(action: str, details: str):
         step_type=StepType.THINKING,
         content=f"Memory {action}: {details}",
     )
+
+
+# =============================================================================
+# Enhanced Monitoring Functions
+# =============================================================================
+
+def add_prompt_build_step(
+    messages: List[Dict],
+    system_prompt: str = "",
+    model_config: Optional[Dict] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+):
+    """记录 Prompt 构建过程，包含完整的 messages 结构。
+    
+    Args:
+        messages: 完整的 messages 列表，每个消息包含 role 和 content
+        system_prompt: 系统提示词
+        model_config: 模型配置参数，如 temperature, max_tokens 等
+    
+    Example:
+        add_prompt_build_step(
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Hello!"},
+            ],
+            system_prompt="You are a helpful assistant.",
+            model_config={"temperature": 0.7, "max_tokens": 2000, "model": "gpt-4"}
+        )
+    """
+    trace = get_current_trace()
+    if not trace:
+        return
+    
+    # Convert messages to PromptMessage objects
+    prompt_messages = []
+    for msg in messages:
+        if isinstance(msg, dict):
+            prompt_messages.append(PromptMessage(
+                role=msg.get("role", "user"),
+                content=msg.get("content", ""),
+                name=msg.get("name"),
+                tool_calls=msg.get("tool_calls"),
+                tool_call_id=msg.get("tool_call_id"),
+            ))
+    
+    # Build prompt info
+    prompt_info = PromptBuildInfo(
+        messages=prompt_messages,
+        system_prompt=system_prompt,
+        model=model_config.get("model", "") if model_config else "",
+        temperature=model_config.get("temperature", 0.0) if model_config else 0.0,
+        top_p=model_config.get("top_p", 0.0) if model_config else 0.0,
+        max_tokens=model_config.get("max_tokens", 0) if model_config else 0,
+        context_window=model_config.get("context_window", 0) if model_config else 0,
+    )
+    
+    # Calculate content summary
+    content = f"Building prompt with {len(messages)} messages"
+    if system_prompt:
+        content += f", system prompt: {system_prompt[:100]}..."
+    
+    step = ExecutionStep(
+        type=StepType.PROMPT_BUILD,
+        content=content,
+        prompt_info=prompt_info,
+        status=Status.SUCCESS,
+        metadata=metadata or {},
+    )
+    trace.add_step(step)
+
+
+def add_skills_loading_step(
+    skills: List[Dict],
+    total_time_ms: float = 0.0,
+    metadata: Optional[Dict[str, Any]] = None,
+):
+    """记录 Skills 加载详情。
+    
+    Args:
+        skills: Skills 列表，每个 skill 包含 name, description, status 等
+        total_time_ms: 总加载时间
+    
+    Example:
+        add_skills_loading_step(
+            skills=[
+                {"name": "github", "description": "GitHub API", "status": "loaded"},
+                {"name": "weather", "status": "failed", "error": "API key missing"},
+            ],
+            total_time_ms=45.2
+        )
+    """
+    trace = get_current_trace()
+    if not trace:
+        return
+    
+    # Convert to SkillInfo objects
+    skill_infos = []
+    loaded_count = 0
+    failed_count = 0
+    
+    for skill_data in skills:
+        skill_info = SkillInfo(
+            name=skill_data.get("name", "unknown"),
+            description=skill_data.get("description", ""),
+            status=skill_data.get("status", "loaded"),
+            error=skill_data.get("error"),
+            load_time_ms=skill_data.get("load_time_ms", 0.0),
+        )
+        skill_infos.append(skill_info)
+        
+        if skill_info.status == "loaded":
+            loaded_count += 1
+        elif skill_info.status == "failed":
+            failed_count += 1
+    
+    content = f"Skills: {loaded_count} loaded"
+    if failed_count > 0:
+        content += f", {failed_count} failed"
+    if total_time_ms > 0:
+        content += f" ({total_time_ms:.1f}ms)"
+    
+    step = ExecutionStep(
+        type=StepType.SKILL_LOADING,
+        content=content,
+        skill_info=skill_infos,
+        latency_ms=total_time_ms,
+        metadata=metadata or {},
+        status=Status.ERROR if failed_count > 0 else Status.SUCCESS,
+    )
+    trace.add_step(step)
+
+
+def add_tool_selection_step(
+    selected_tool: str,
+    available_tools: Optional[List[Dict]] = None,
+    reason: str = "",
+    confidence: float = 0.0,
+    tool_call_id: str = "",
+):
+    """记录 Tool 选择决策过程。
+    
+    Args:
+        selected_tool: 被选中的 tool 名称
+        available_tools: 所有可用的 tools 列表
+        reason: 选择原因/模型的思考过程
+        confidence: 置信度（0-1）
+        tool_call_id: 关联的 tool call ID
+    
+    Example:
+        add_tool_selection_step(
+            selected_tool="weather_api",
+            available_tools=[
+                {"name": "weather_api", "description": "Get weather"},
+                {"name": "search", "description": "Web search"},
+            ],
+            reason="User is asking about weather, weather_api is most appropriate.",
+            confidence=0.95
+        )
+    """
+    trace = get_current_trace()
+    if not trace:
+        return
+    
+    tool_selection = ToolSelectionInfo(
+        selected_tool=selected_tool,
+        available_tools=available_tools or [],
+        selection_reason=reason,
+        confidence=confidence,
+        tool_call_id=tool_call_id,
+    )
+    
+    content = f"Selected tool: {selected_tool}"
+    if reason:
+        content += f"\nReason: {reason[:200]}..."
+    
+    step = ExecutionStep(
+        type=StepType.TOOL_SELECTION,
+        content=content,
+        tool_selection=tool_selection,
+        status=Status.SUCCESS,
+    )
+    trace.add_step(step)
+
+
+def add_memory_operation_step(
+    operation: str,
+    key: str = "",
+    data: Any = None,
+    namespace: str = "default",
+    tokens_affected: int = 0,
+    details: Optional[Dict[str, Any]] = None,
+):
+    """记录 Memory 操作详情。
+    
+    Args:
+        operation: 操作类型，如 read, write, delete, search, consolidate
+        key: 操作的 key
+        data: 操作的数据
+        namespace: 命名空间
+        tokens_affected: 影响的 token 数量
+        details: 额外的操作详情
+    
+    Example:
+        add_memory_operation_step(
+            operation="consolidate",
+            key="session_memory",
+            tokens_affected=15000,
+            details={"original_tokens": 20000, "new_tokens": 5000}
+        )
+    """
+    trace = get_current_trace()
+    if not trace:
+        return
+    
+    # Build data preview
+    data_preview = ""
+    if data is not None:
+        try:
+            data_str = json.dumps(data, ensure_ascii=False)
+            data_preview = data_str[:500]
+        except (TypeError, ValueError):
+            data_preview = str(data)[:500]
+    
+    memory_info = MemoryOperationInfo(
+        operation=operation,
+        key=key,
+        namespace=namespace,
+        data_preview=data_preview,
+        tokens_affected=tokens_affected,
+        operation_details=details or {},
+    )
+    
+    content = f"Memory {operation}"
+    if key:
+        content += f": {key}"
+    if tokens_affected > 0:
+        content += f" ({tokens_affected} tokens)"
+    
+    step = ExecutionStep(
+        type=StepType.MEMORY_OPERATION,
+        content=content,
+        memory_info=memory_info,
+        tokens_input=tokens_affected if operation in ["read", "search"] else 0,
+        tokens_output=tokens_affected if operation in ["write", "consolidate"] else 0,
+        status=Status.SUCCESS,
+    )
+    trace.add_step(step)
+
+
+def add_subagent_call_step(
+    agent_name: str,
+    input_query: str,
+    agent_id: str = "",
+    child_trace_id: Optional[str] = None,
+    timeout: float = 0.0,
+    result_preview: str = "",
+):
+    """记录 Sub-agent 调用。
+    
+    Args:
+        agent_name: Sub-agent 名称
+        input_query: 输入查询
+        agent_id: Sub-agent ID
+        child_trace_id: 子 trace ID（用于关联）
+        timeout: 超时时间
+        result_preview: 结果预览
+    
+    Example:
+        add_subagent_call_step(
+            agent_name="code_review_agent",
+            input_query="Review this Python code...",
+            agent_id="agent_001",
+            timeout=30.0
+        )
+    """
+    trace = get_current_trace()
+    if not trace:
+        return
+    
+    subagent_info = SubAgentCallInfo(
+        agent_name=agent_name,
+        agent_id=agent_id,
+        input_query=input_query[:500],
+        child_trace_id=child_trace_id,
+        timeout=timeout,
+        result_preview=result_preview[:500],
+    )
+    
+    content = f"Calling sub-agent: {agent_name}"
+    if input_query:
+        content += f"\nInput: {input_query[:200]}..."
+    
+    step = ExecutionStep(
+        type=StepType.SUBAGENT_CALL,
+        content=content,
+        subagent_info=subagent_info,
+        status=Status.SUCCESS,
+    )
+    trace.add_step(step)
+    
+    # Link child trace if provided
+    if child_trace_id:
+        trace.child_trace_ids.append(child_trace_id)
+
+
+def add_reasoning_step(
+    content: str,
+    reasoning_type: str = "chain_of_thought",  # chain_of_thought, plan, reflection
+    plan_steps: Optional[List[str]] = None,
+    confidence: float = 0.0,
+):
+    """记录推理/思考过程。
+    
+    Args:
+        content: 推理内容
+        reasoning_type: 推理类型
+        plan_steps: 如果是 plan，记录步骤列表
+        confidence: 置信度
+    
+    Example:
+        add_reasoning_step(
+            content="I need to break this task into steps...",
+            reasoning_type="plan",
+            plan_steps=["Search for info", "Analyze data", "Generate response"],
+            confidence=0.9
+        )
+    """
+    trace = get_current_trace()
+    if not trace:
+        return
+    
+    reasoning_info = ReasoningInfo(
+        reasoning_content=content,
+        reasoning_type=reasoning_type,
+        plan_steps=plan_steps or [],
+        confidence=confidence,
+    )
+    
+    type_labels = {
+        "chain_of_thought": "💭 Reasoning",
+        "plan": "📋 Plan",
+        "reflection": "🔄 Reflection",
+    }
+    label = type_labels.get(reasoning_type, "💭 Thinking")
+    
+    display_content = f"{label}\n{content}"
+    if plan_steps:
+        display_content += f"\n\nSteps:\n" + "\n".join(f"  {i+1}. {step}" for i, step in enumerate(plan_steps))
+    
+    step = ExecutionStep(
+        type=StepType.REASONING,
+        content=display_content,
+        reasoning_info=reasoning_info,
+        status=Status.SUCCESS,
+    )
+    trace.add_step(step)

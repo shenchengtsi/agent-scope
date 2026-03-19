@@ -17,7 +17,7 @@ const statusConfig = {
   error: { color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)' },
 };
 
-function TraceTimeline({ steps, onStepClick, selectedStep }) {
+function TraceTimeline({ steps, onStepClick, selectedStep, traceStats }) {
   if (!steps || steps.length === 0) {
     return (
       <div style={styles.empty}>
@@ -81,12 +81,28 @@ function TraceTimeline({ steps, onStepClick, selectedStep }) {
                 </p>
 
                 <div style={styles.meta}>
-                  {step.tokens_input > 0 && (
+                  {/* For output step, show trace totals */}
+                  {step.type === 'output' && traceStats && (
+                    <>
+                      <span style={{ ...styles.badge, color: '#3b82f6' }}>
+                        📥 {traceStats.totalTokensIn?.toLocaleString() || 0} in
+                      </span>
+                      <span style={{ ...styles.badge, color: '#10b981' }}>
+                        📤 {traceStats.totalTokensOut?.toLocaleString() || 0} out
+                      </span>
+                      <span style={{ ...styles.badge, color: '#f59e0b' }}>
+                        ⏱️ {(traceStats.totalLatency / 1000)?.toFixed(2) || 0}s
+                      </span>
+                    </>
+                  )}
+                  
+                  {/* Regular step metrics */}
+                  {step.type !== 'output' && step.tokens_input > 0 && (
                     <span style={styles.badge}>
                       📊 {(step.tokens_input + step.tokens_output).toLocaleString()} tokens
                     </span>
                   )}
-                  {step.latency_ms > 0 && (
+                  {step.type !== 'output' && step.latency_ms > 0 && (
                     <span style={styles.badge}>
                       ⏱️ {step.latency_ms.toFixed(0)}ms
                     </span>

@@ -1,360 +1,142 @@
-# AgentScope 🔭
+# AgentScope
 
-> **"Observe Every Thought, Debug Every Step"** — Lightweight, framework-agnostic observability for AI Agents
+分布式 AI Agent 追踪与监控系统
 
-[![PyPI](https://img.shields.io/pypi/v/ai-agent-scope.svg)](https://pypi.org/project/ai-agent-scope/)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)](https://reactjs.org/)
+## 特性
 
-**AgentScope** is a production-ready observability platform for AI Agent systems. It provides deep visibility into execution chains without compromising performance or reliability.
+- 🔍 **实时追踪**: 监控 agent 执行流程，可视化调用链
+- 📊 **性能分析**: LLM 调用耗时、token 使用、成本估算
+- 🛠️ **工具追踪**: 记录工具调用参数和结果
+- 🧠 **Prompt 分析**: 查看完整的 prompt 构建过程
+- 📈 **多实例支持**: 同时监控多个 agent 实例
+- 🔌 **非侵入式**: 通过 monkey-patching 自动注入，无需修改业务代码
 
-[Live Demo](https://github.com/shenchengtsi/agent-scope#demo) • [Quick Start](https://github.com/shenchengtsi/agent-scope#quick-start) • [Documentation](https://github.com/shenchengtsi/agent-scope/tree/main/docs)
+## 快速开始
 
----
-
-## 🎯 Why AgentScope?
-
-### The Problem
-
-Building AI Agents is hard. Debugging them is harder:
-- **Black box execution**: Can't see what the agent is doing step-by-step
-- **Tool call failures**: Don't know which tool failed and why
-- **Performance blindspots**: No visibility into latency, token usage, costs
-- **Multi-agent chaos**: Can't trace interactions between agents
-
-### The Solution
-
-AgentScope provides **deep observability** with **minimal intrusion**:
-
-```
-Before AgentScope:
-❌ User Input → [Black Box] → Output
-
-After AgentScope:
-✅ User Input → Context Building → LLM Call (850ms, 150 tokens)
-              → Tool: web_search (120ms) → Tool: calculator (5ms)
-              → LLM Call (920ms, 200 tokens) → Output
-```
-
----
-
-## ✨ Key Features
-
-<img width="1682" height="1220" alt="img_v3_02vu_ee12b398-2c90-4e80-b2a0-157a35e1fefg" src="https://github.com/user-attachments/assets/50f17112-ad13-4e17-b22d-627926c6595d" />
-
-<img width="1689" height="1220" alt="img_v3_02vu_eb5db398-9bce-4972-8161-83a7e4dd089g" src="https://github.com/user-attachments/assets/2627586a-caa5-4ec2-8472-92e9f31621cb" />
-
-### 🔍 Execution Chain Visualization
-See every step of your agent's reasoning:
-- LLM calls with prompts, responses, token usage
-- Tool executions with arguments, results, errors
-- Memory operations and context changes
-- Thinking/reasoning steps
-
-### 📊 Production Metrics
-Monitor what matters:
-- **Latency**: Per-step and end-to-end timing
-- **Token Usage**: Input/output tokens, cost estimation
-- **Success Rate**: Track tool and LLM call reliability
-- **Iteration Count**: Detect infinite loops early
-
-### 🔧 Framework Agnostic
-Works with any Python Agent framework:
-- LangChain, AutoGen, CrewAI
-- OpenAI Agents SDK
-- Custom frameworks
-- Multi-agent systems
-
-### ⚡ Zero-Overhead Design
-- **< 1% performance impact** using ContextVar-based propagation
-- **Asynchronous data collection** — never blocks your agent
-- **Graceful degradation** — monitoring failures don't affect business logic
-
-### 🛡️ Production Safe
-- **Fault isolated**: Agent continues even if monitoring fails
-- **Sampling support**: Monitor only 10% of traffic in production
-- **Data sanitization**: Automatic PII/sensitive data redaction
-- **Local first**: All data stays on your infrastructure
-
----
-
-## 🚀 Quick Start
-
-### Option A: Using PyPI (Recommended for Users)
-
-Install the SDK in your agent project:
+### 安装
 
 ```bash
-pip install ai-agent-scope
-```
-
-Then start the backend and frontend separately:
-
-```bash
-# Clone only backend & frontend
-git clone https://github.com/shenchengtsi/agent-scope.git
+# 克隆仓库
+git clone https://github.com/yourusername/agentscope.git
 cd agentscope
 
-# Start backend
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8000
+# 一键安装
+./install.sh
+
+# 或手动安装
+pip install -e ./sdk
+cd backend && pip install -r requirements.txt
+cd ../frontend && npm install
 ```
 
-### Option B: Full Development Setup
+### 启动服务
 
 ```bash
-# Clone the entire repository
-git clone https://github.com/shenchengtsi/agent-scope.git
-cd agentscope
+# 启动后端
+./start-backend.sh
 
-# Install SDK in development mode
-cd sdk
-pip install -e .
+# 启动前端 (另一个终端)
+./start-frontend.sh
 
-# Install and start backend
-cd ../backend
-pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8000
+# 或同时启动
+./start-all.sh
 ```
 
-### 2. Start the Frontend
+### 配置 Nanobot
 
 ```bash
-cd frontend
-npm install
-npm start
+# 自动配置
+agentscope setup nanobot --workspace ~/.nanobot
+
+# 重启 nanobot
+launchctl unload ~/Library/LaunchAgents/com.nanobot.main.plist
+launchctl load ~/Library/LaunchAgents/com.nanobot.main.plist
 ```
 
-Open http://localhost:3001 to view the dashboard.
+访问 http://localhost:3000 查看监控面板
 
-### 3. Instrument Your Agent
+## 截图
 
-```python
-from agentscope import init_monitor, trace_scope, add_llm_call, add_tool_call
-import time
+![AgentScope Dashboard](docs/screenshot.png)
 
-# Initialize once
-init_monitor("http://localhost:8000")
+## 支持的框架
 
-# Wrap your agent execution
-async def my_agent(user_input):
-    with trace_scope("customer_support", input_query=user_input):
-        
-        # LLM call with automatic tracking
-        start = time.time()
-        response = await llm.chat.completions.create(...)
-        add_llm_call(
-            prompt=user_input,
-            completion=response.choices[0].message.content,
-            tokens_input=response.usage.prompt_tokens,
-            tokens_output=response.usage.completion_tokens,
-            latency_ms=(time.time() - start) * 1000,
-        )
-        
-        # Tool execution with tracking
-        tool_start = time.time()
-        result = await search_tool(response.content)
-        add_tool_call(
-            tool_name="search",
-            arguments={"query": response.content},
-            result=result,
-            latency_ms=(time.time() - tool_start) * 1000,
-        )
-        
-        return result
-```
+| 框架 | 状态 | 说明 |
+|------|------|------|
+| Nanobot | ✅ 完全支持 | 使用 agentscope setup nanobot |
+| LangChain | 🚧 开发中 | 即将支持 |
+| LlamaIndex | 🚧 开发中 | 即将支持 |
+| Custom | ✅ 支持 | 使用 SDK API 手动集成 |
 
-**That's it!** Open the dashboard to see complete execution traces.
-
----
-
-## 💡 Use Cases
-
-### 1. Debugging Complex Agents
-
-```python
-# See exactly what your agent is doing
-with trace_scope("research_agent"):
-    # 1. Planning step
-    add_thinking("Breaking down research query into sub-tasks")
-    
-    # 2. Web search
-    results = await web_search(query)  # Tracked automatically
-    
-    # 3. Analysis
-    analysis = await analyze_results(results)  # Tracked
-    
-    # 4. Synthesis
-    return synthesis(analysis)
-```
-
-**Value**: Debug production issues in minutes instead of hours.
-
-### 2. Cost Optimization
-
-Track token usage and latency per component:
-```
-[research_agent] Total Cost: $0.023
-├── LLM Call 1: 150 tokens ($0.003)
-├── Web Search: 200ms (free)
-├── LLM Call 2: 400 tokens ($0.008)
-└── Analysis: 300 tokens ($0.012)
-```
-
-**Value**: Identify expensive operations and optimize.
-
-### 3. Reliability Monitoring
-
-Alert on anomaly patterns:
-- High error rate on specific tools
-- Unusual latency spikes
-- Excessive iteration counts (infinite loops)
-- Token usage anomalies
-
-### 4. Multi-Agent Orchestration
-
-```python
-# Trace cross-agent communication
-with trace_scope("agent_collaboration", tags=["multi-agent"]):
-    result_a = await agent_a.process(task)
-    result_b = await agent_b.review(result_a)
-    final = await agent_c.synthesize([result_a, result_b])
-```
-
-**Value**: Understand agent interactions and optimize handoffs.
-
----
-
-## 🏗️ Architecture
-
-AgentScope uses **Scheme 3: Context Manager + Context Propagation** for minimal intrusion:
+## 项目结构
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Your Agent Framework                                    │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │  trace_scope() Context Manager                   │   │
-│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐         │   │
-│  │  │LLM Call │→ │Tool Call│→ │LLM Call │         │   │
-│  │  └────┬────┘  └────┬────┘  └────┬────┘         │   │
-│  │       │            │            │               │   │
-│  │       └────────────┼────────────┘               │   │
-│  │                    ▼                            │   │
-│  │         ContextVar (_current_trace)             │   │
-│  └────────────────────┼────────────────────────────┘   │
-└───────────────────────┼─────────────────────────────────┘
-                        │
-                        ▼ HTTP/WebSocket
-┌─────────────────────────────────────────────────────────┐
-│  AgentScope Backend (FastAPI + SQLite/PostgreSQL)        │
-└─────────────────────────────────────────────────────────┘
-                        │
-                        ▼ WebSocket
-┌─────────────────────────────────────────────────────────┐
-│  Web Dashboard (React + D3.js)                          │
-└─────────────────────────────────────────────────────────┘
+agentscope/
+├── sdk/                    # Python SDK
+│   ├── agentscope/
+│   │   ├── monitor.py     # 核心监控 API
+│   │   ├── models.py      # 数据模型
+│   │   └── instrumentation/
+│   │       └── nanobot_instrumentor.py
+│   └── setup.py
+├── backend/               # FastAPI 后端
+│   ├── main.py
+│   └── requirements.txt
+├── frontend/              # React 前端
+│   └── src/
+├── install.sh             # 一键安装脚本
+└── README.md
 ```
 
-**Why this design?**
-- **No framework lock-in**: Works with any Python code
-- **Zero configuration**: Automatic context propagation
-- **Type-safe**: Leverages Python's ContextVar for thread/coroutine safety
-- **Composable**: Nest traces, create sub-traces naturally
+## CLI 工具
 
----
+```bash
+# 配置 nanobot
+agentscope setup nanobot --workspace ~/.nanobot
 
-## 📊 Performance Benchmarks
+# 检查状态
+agentscope status
 
-| Metric | Value | Notes |
-|--------|-------|-------|
-| Context Manager Overhead | ~10μs | Negligible |
-| Step Recording | ~5μs | In-memory |
-| HTTP Transmission | ~50ms | Async, non-blocking |
-| **Total Impact** | **< 1%** | Relative to LLM latency (500ms-2s) |
+# 卸载
+agentscope uninstall nanobot --workspace ~/.nanobot
 
-Tested on: MacBook Pro M1, Python 3.11, typical LLM workload.
-
----
-
-## 🔒 Security & Privacy
-
-### Data Protection
-```python
-# Automatic sensitive data redaction
-sanitized_args = {
-    k: "***" if k in ["password", "api_key", "token"] else v
-    for k, v in arguments.items()
-}
+# 帮助
+agentscope --help
 ```
 
-### Deployment Options
-- **On-premise**: All data stays within your network
-- **Air-gapped**: No external dependencies
-- **Encrypted**: HTTPS/WSS for all communications
+## 环境变量
 
-### Compliance Ready
-- GDPR compliant (data retention controls)
-- SOC 2 ready (audit logging)
-- HIPAA compatible (with proper configuration)
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `AGENTSCOPE_BACKEND_URL` | 后端服务地址 | `http://localhost:8000` |
+| `AGENTSCOPE_AUTO_INSTRUMENT` | 自动启用监控 | `true` |
 
----
+## 开发
 
-## 📖 Documentation
+```bash
+# 安装开发依赖
+pip install -e ".[dev]"
 
-- [Integration Guide](docs/integration-guide.md) — Step-by-step framework integration
-- [Nanobot Integration](docs/NANOBOT_INTEGRATION_GUIDE.md) — Complete nanobot integration guide
-- [Architecture](docs/architecture.md) — Deep dive into design decisions
-- [API Reference](docs/api-reference.md) — SDK API documentation
-- [Examples](examples/) — Working code samples
+# 运行测试
+pytest
 
----
+# 代码格式化
+black sdk/agentscope
+```
 
-## 🛠️ Supported Frameworks
+## 贡献
 
-| Framework | Integration | Status |
-|-----------|-------------|--------|
-| **nanobot** | Direct instrumentation | ✅ Production Ready |
-| **LangChain** | Callback Handler | 📝 Guide Available |
-| **AutoGen** | Agent inheritance | 📝 Guide Available |
-| **CrewAI** | Decorator pattern | 📝 Guide Available |
-| **OpenAI Agents** | Auto-instrumentation | 📝 Guide Available |
-| **Custom** | SDK direct | ✅ Fully Supported |
+欢迎贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详情。
 
----
+## 许可证
 
-## 🤝 Contributing
+MIT License - 查看 [LICENSE](LICENSE) 文件
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+## 相关项目
 
-**Areas we need help with:**
-- Additional framework integrations
-- Frontend UI improvements
-- Documentation translations
-- Production deployment guides
+- [Nanobot](https://github.com/clawrenceks/nanobot) - AI agent 框架
 
----
+## 联系方式
 
-## 📄 License
-
-MIT License — see [LICENSE](LICENSE) for details.
-
----
-
-## 🙏 Acknowledgments
-
-- Architecture inspired by [OpenTelemetry](https://opentelemetry.io/) and [LangSmith](https://smith.langchain.com/)
-- UI design inspired by [Jaeger](https://www.jaegertracing.io/)
-
----
-
-<div align="center">
-
-**[Get Started](https://github.com/shenchengtsi/agent-scope#quick-start)** • 
-**[Documentation](docs/)** • 
-**[Report Bug](https://github.com/shenchengtsi/agent-scope/issues)** • 
-**[Request Feature](https://github.com/shenchengtsi/agent-scope/issues)**
-
-</div>
+- GitHub Issues: https://github.com/yourusername/agentscope/issues
+- Email: your.email@example.com

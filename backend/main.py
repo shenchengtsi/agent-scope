@@ -28,6 +28,66 @@ class ToolCallData(BaseModel):
     latency_ms: float = 0.0
 
 
+# Enhanced monitoring data models
+class SkillInfoData(BaseModel):
+    name: str
+    description: str = ""
+    status: str = "loaded"
+    error: Optional[str] = None
+    load_time_ms: float = 0.0
+
+
+class PromptMessageData(BaseModel):
+    role: str
+    content: str
+    name: Optional[str] = None
+    tool_calls: Optional[List[Dict]] = None
+    tool_call_id: Optional[str] = None
+
+
+class PromptBuildInfoData(BaseModel):
+    messages: List[PromptMessageData] = []
+    system_prompt: str = ""
+    context_window: int = 0
+    max_tokens: int = 0
+    temperature: float = 0.0
+    top_p: float = 0.0
+    model: str = ""
+
+
+class ToolSelectionInfoData(BaseModel):
+    selected_tool: str
+    available_tools: List[Dict] = []
+    selection_reason: str = ""
+    confidence: float = 0.0
+    tool_call_id: str = ""
+
+
+class MemoryOperationInfoData(BaseModel):
+    operation: str = ""
+    key: str = ""
+    namespace: str = "default"
+    data_preview: str = ""
+    tokens_affected: int = 0
+    operation_details: Dict[str, Any] = {}
+
+
+class SubAgentCallInfoData(BaseModel):
+    agent_name: str = ""
+    agent_id: str = ""
+    input_query: str = ""
+    child_trace_id: Optional[str] = None
+    timeout: float = 0.0
+    result_preview: str = ""
+
+
+class ReasoningInfoData(BaseModel):
+    reasoning_content: str = ""
+    reasoning_type: str = ""
+    plan_steps: List[str] = []
+    confidence: float = 0.0
+
+
 class ExecutionStepData(BaseModel):
     id: str
     type: str
@@ -39,6 +99,17 @@ class ExecutionStepData(BaseModel):
     tool_call: Optional[ToolCallData] = None
     metadata: dict = {}
     status: str = "pending"
+    # Enhanced monitoring fields
+    prompt_info: Optional[PromptBuildInfoData] = None
+    skill_info: Optional[List[SkillInfoData]] = None
+    tool_selection: Optional[ToolSelectionInfoData] = None
+    memory_info: Optional[MemoryOperationInfoData] = None
+    subagent_info: Optional[SubAgentCallInfoData] = None
+    reasoning_info: Optional[ReasoningInfoData] = None
+    # Hierarchy
+    sub_steps: List['ExecutionStepData'] = []
+    parent_step_id: Optional[str] = None
+    depth: int = 0
 
 
 class TraceData(BaseModel):
@@ -54,6 +125,15 @@ class TraceData(BaseModel):
     input_query: str = ""
     output_result: str = ""
     metadata: dict = {}
+    # Hierarchy
+    parent_trace_id: Optional[str] = None
+    child_trace_ids: List[str] = []
+    depth: int = 0
+    # Statistics
+    cost_estimate: float = 0.0
+    context_window_usage: float = 0.0
+    llm_call_count: int = 0
+    tool_call_count: int = 0
 
 
 @asynccontextmanager
@@ -181,6 +261,77 @@ async def clear_traces():
     traces.clear()
     await broadcast_trace({"type": "clear_all"})
     return {"status": "ok"}
+
+
+@app.get("/api/traces/{trace_id}/children")
+async def get_child_traces(trace_id: str):
+    """Get child traces of a specific trace."""
+    if trace_id not in traces:
+        return {"error": "Trace not found"}, 404
+    
+    trace = traces[trace_id]
+    child_ids = trace.get("child_trace_ids", [])
+    child_traces = [traces[cid] for cid in child_ids if cid in traces]
+    return {"children": child_traces}
+
+
+class CompareRequest(BaseModel):
+    trace_id_1: str
+    trace_id_2: str
+
+
+@app.post("/api/traces/compare")
+async def compare_traces(request: CompareRequest):
+    """Compare two traces and return differences."""
+    if request.trace_id_1 not in traces:
+        return {"error": f"Trace {request.trace_id_1} not found"}, 404
+    if request.trace_id_2 not in traces:
+        return {"error": f"Trace {request.trace_id_2} not found"}, 404
+    
+    trace1 = traces[request.trace_id_1]
+    trace2 = traces[request.trace_id_2]
+    
+    # Calculate differences
+    diff = {
+        "trace1_id": request.trace_id_1,
+        "trace2_id": request.trace_id_2,
+        "latency_diff_ms": trace2.get("total_latency_ms", 0) - trace1.get("total_latency_ms", 0),
+        "tokens_diff": trace2.get("total_tokens", 0) - trace1.get("total_tokens", 0),
+        "steps_count_diff": len(trace2.get("steps", [])) - len(trace1.get("steps", [])),
+        "cost_diff": trace2.get("cost_estimate", 0) - trace1.get("cost_estimate", 0),
+        "status_changed": trace1.get("status") != trace2.get("status"),
+        "trace1_status": trace1.get("status"),
+        "trace2_status": trace2.get("status"),
+    }
+    
+    return {"comparison": diff}
+
+
+@app.get("/api/metrics/realtime")
+async def get_realtime_metrics():
+    """Get real-time metrics for all traces."""
+    if not traces:
+        return {
+            "total_traces": 0,
+            "success_rate": 0,
+            "avg_latency_ms": 0,
+            "total_tokens": 0,
+            "total_cost": 0,
+        }
+    
+    total = len(traces)
+    successful = sum(1 for t in traces.values() if t.get("status") == "success")
+    latencies = [t.get("total_latency_ms", 0) for t in traces.values()]
+    tokens = [t.get("total_tokens", 0) for t in traces.values()]
+    costs = [t.get("cost_estimate", 0) for t in traces.values()]
+    
+    return {
+        "total_traces": total,
+        "success_rate": successful / total if total > 0 else 0,
+        "avg_latency_ms": sum(latencies) / len(latencies) if latencies else 0,
+        "total_tokens": sum(tokens),
+        "total_cost": sum(costs),
+    }
 
 
 # WebSocket endpoint for real-time updates

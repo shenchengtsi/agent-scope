@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-03-19
+
+### Added
+
+- **CLI Tool** (`agentscope` command)
+  - `agentscope setup nanobot --workspace <path>`: Automated configuration for nanobot
+  - `agentscope status`: Check AgentScope backend and SDK status
+  - `agentscope uninstall nanobot --workspace <path>`: Remove configuration
+  - Auto-generates `sitecustomize.py` with proper SDK path
+  - Generates `AGENTSCOPE_SETUP.md` with configuration instructions
+
+- **One-Click Installation Script** (`install.sh`)
+  - Automated SDK + Backend + Frontend installation
+  - Detects existing nanobot workspaces
+  - Creates startup scripts (`start-backend.sh`, `start-frontend.sh`, `start-all.sh`)
+
+- **Enhanced Nanobot Instrumentation**
+  - `call_sequence` tracking for prompt_build steps
+  - Skill name display in monitoring (e.g., "Skills: 1 loaded (memory)")
+  - Removed duplicate skill loading records
+  - Environment variable support for backend URL
+
+- **Environment Variable Configuration**
+  - `AGENTSCOPE_BACKEND_URL`: Configure backend endpoint
+  - `AGENTSCOPE_AUTO_INSTRUMENT`: Control auto-instrumentation
+  - No more hardcoded paths in configuration
+
+- **Documentation**
+  - `INSTALL.md`: Comprehensive installation guide for end users
+  - `NANOBOT_SETUP.md`: Nanobot-specific configuration guide
+  - Updated `README.md` with quick start instructions
+
+### Changed
+
+- **Improved Setup Experience**
+  - From manual plist editing to CLI automation
+  - From hardcoded paths to environment variables
+  - From complex manual steps to `install.sh` one-liner
+
+- **Backend URL Configuration**
+  - SDK now reads from `AGENTSCOPE_BACKEND_URL` environment variable
+  - Falls back to `http://localhost:8000` if not set
+  - Supports remote backend deployment
+
+### Fixed
+
+- **Skill Loading Accuracy**
+  - Fixed showing all 17 available skills instead of actually loaded skills
+  - Now correctly displays only the skills used in current request
+  - Skill names are now visible in trace (e.g., "weather", "memory")
+
+- **Duplicate Step Recording**
+  - Removed duplicate `skill_loading` and `prompt_build` steps
+  - Each step now correctly tagged with `call_sequence` number
+
 ## [0.3.0] - 2026-03-19
 
 ### Added
@@ -106,7 +161,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fault isolation (monitoring failures don't affect main business logic)
 - Real-time debugging via WebSocket
 
-[Unreleased]: https://github.com/shenchengtsi/agent-scope/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/shenchengtsi/agent-scope/compare/v0.3.0...HEAD
+[0.4.0]: https://github.com/shenchengtsi/agent-scope/releases/tag/v0.4.0
 [0.3.0]: https://github.com/shenchengtsi/agent-scope/releases/tag/v0.3.0
 [0.2.0]: https://github.com/shenchengtsi/agent-scope/releases/tag/v0.2.0
 [0.1.0]: https://github.com/shenchengtsi/agent-scope/releases/tag/v0.1.0

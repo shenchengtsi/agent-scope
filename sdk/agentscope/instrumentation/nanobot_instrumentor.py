@@ -9,32 +9,16 @@ from loguru import logger
 
 from ..monitor import (
     init_monitor, trace_scope, add_step, add_llm_call, add_tool_call,
-    add_prompt_build_step, add_skills_loading_step, add_reasoning_step,
-    add_tool_selection_step, add_memory_operation_step
+    add_prompt_build_step, add_tool_selection_step
 )
 from ..models import StepType, Status
 
 
+# Get backend URL from environment or use default
+AGENTSCOPE_BACKEND_URL = os.getenv("AGENTSCOPE_BACKEND_URL", "http://localhost:8000")
+
+
 _instrumented = False
-
-
-def _extract_skills_from_context(context_builder) -> list:
-    """Extract skills list from ContextBuilder."""
-    skills_data = []
-    try:
-        if hasattr(context_builder, 'skills') and context_builder.skills:
-            skills_loader = context_builder.skills
-            if hasattr(skills_loader, 'list_skills'):
-                raw_skills = skills_loader.list_skills(filter_unavailable=False)
-                for skill in raw_skills:
-                    skills_data.append({
-                        "name": skill.get("name", "unknown"),
-                        "source": skill.get("source", "unknown"),
-                        "status": "loaded"  # Simplified status
-                    })
-    except Exception as e:
-        logger.debug(f"AgentScope: Failed to extract skills: {e}")
-    return skills_data
 
 
 def _instrument_context_builder(context_builder_class):
@@ -43,21 +27,21 @@ def _instrument_context_builder(context_builder_class):
     
     @functools.wraps(original_build_messages)
     def monitored_build_messages(self, *args, **kwargs):
-        # Call original method
+        # Call original method first
         result = original_build_messages(self, *args, **kwargs)
         
         # Record prompt build
         try:
-            # Extract info from kwargs and self
-            history = kwargs.get('history', args[0] if args else [])
-            current_message = kwargs.get('current_message', '')
+            from ..monitor import get_current_trace
+            trace = get_current_trace()
+            if not trace:
+                return result
             
-            # Build messages list for monitoring
-            messages = []
-            if isinstance(history, list):
-                messages.extend(history)
-            if current_message:
-                messages.append({"role": "user", "content": current_message})
+            # Get call sequence number for this trace
+            if not hasattr(trace, '_build_messages_count'):
+                trace._build_messages_count = 0
+            trace._build_messages_count += 1
+            call_num = trace._build_messages_count
             
             # Get system prompt
             system_prompt = ""
@@ -67,24 +51,20 @@ def _instrument_context_builder(context_builder_class):
                 except:
                     pass
             
-            # Record skills loading first (if available)
-            skills_data = _extract_skills_from_context(self)
-            if skills_data:
-                from ..monitor import get_current_trace
-                if get_current_trace():
-                    add_skills_loading_step(skills=skills_data, total_time_ms=0)
-                    logger.debug(f"AgentScope: Recorded {len(skills_data)} skills")
+            # Note: Skills loading is already accurately recorded by nanobot's native
+            # monitoring in load_skills_for_context(). We don't record it here because
+            # list_skills() returns ALL available skills (e.g., 17), not the ACTUALLY
+            # loaded skills for this request (e.g., 2).
             
-            # Record prompt build
+            # Record prompt build with sequence info
             if result and isinstance(result, list):
-                from ..monitor import get_current_trace
-                if get_current_trace():
-                    add_prompt_build_step(
-                        messages=result,
-                        system_prompt=system_prompt,
-                        model_config={}  # Model config will be recorded at LLM call
-                    )
-                    logger.debug(f"AgentScope: Recorded prompt with {len(result)} messages")
+                add_prompt_build_step(
+                    messages=result,
+                    system_prompt=system_prompt,
+                    model_config={},
+                    metadata={"call_sequence": call_num}
+                )
+                logger.debug(f"AgentScope: Recorded prompt with {len(result)} messages (call #{call_num})")
                     
         except Exception as e:
             logger.debug(f"AgentScope: Failed to record prompt build: {e}")
@@ -104,7 +84,7 @@ def _instrument_agent_loop(agent_loop_class):
     @functools.wraps(original_run)
     async def monitored_run(self):
         try:
-            init_monitor("http://localhost:8000")
+            init_monitor(AGENTSCOPE_BACKEND_URL)
             logger.info("AgentScope: Non-intrusive monitoring enabled")
         except Exception as e:
             logger.debug(f"AgentScope: Failed to initialize: {e}")
@@ -158,14 +138,14 @@ def _instrument_agent_loop(agent_loop_class):
 
 
 def _instrument_provider_calls(agent_loop_class):
-    """Instrument LLM provider chat calls."""
+    """Instrument LLM provider calls."""
     original_run_agent_loop = agent_loop_class._run_agent_loop
     
     @functools.wraps(original_run_agent_loop)
     async def monitored_run_agent_loop(self, initial_messages, on_progress=None):
         start_time = time.time()
         
-        # Record tool selection (available tools)
+        # Record tool selection once at the start
         try:
             if hasattr(self, 'tools') and self.tools:
                 tool_defs = self.tools.get_definitions()
@@ -178,15 +158,12 @@ def _instrument_provider_calls(agent_loop_class):
                                 "description": tool.get('description', tool.get('function', {}).get('description', ''))
                             })
                     
-                    # Only record if there are tools
                     if available_tools:
-                        from ..monitor import get_current_trace
-                        if get_current_trace():
-                            add_tool_selection_step(
-                                selected_tool="(available)",
-                                available_tools=available_tools,
-                                reason=f"{len(available_tools)} tools available for this request"
-                            )
+                        add_tool_selection_step(
+                            selected_tool="(available)",
+                            available_tools=available_tools,
+                            reason=f"{len(available_tools)} tools available"
+                        )
         except Exception as e:
             logger.debug(f"AgentScope: Failed to record tools: {e}")
         
@@ -198,30 +175,32 @@ def _instrument_provider_calls(agent_loop_class):
             latency_ms = (time.time() - start_time) * 1000
             final_content, tools_used, all_msgs = result
             
-            # Record LLM calls from messages
+            # Record LLM calls summary
             try:
-                from ..monitor import get_current_trace
-                if get_current_trace():
-                    # Count tokens roughly (this is an approximation)
-                    tokens_in = sum(len(str(m.get('content', ''))) // 4 for m in initial_messages)
-                    tokens_out = len(str(final_content)) // 4 if final_content else 0
-                    
-                    add_llm_call(
-                        prompt=f"Agent loop with {len(initial_messages)} messages",
-                        completion=final_content[:200] if final_content else "",
-                        tokens_input=tokens_in,
-                        tokens_output=tokens_out,
-                        latency_ms=latency_ms
-                    )
-                    
-                    # Record tool calls
+                # Count tokens roughly
+                tokens_in = sum(len(str(m.get('content', ''))) // 4 for m in initial_messages)
+                tokens_out = len(str(final_content)) // 4 if final_content else 0
+                
+                add_llm_call(
+                    prompt=f"Agent loop with {len(initial_messages)} messages",
+                    completion=final_content[:200] if final_content else "",
+                    tokens_input=tokens_in,
+                    tokens_output=tokens_out,
+                    latency_ms=latency_ms
+                )
+                
+                # Record unique tool calls
+                if tools_used:
+                    recorded_tools = set()
                     for tool_name in tools_used:
-                        add_tool_call(
-                            tool_name=tool_name,
-                            arguments={},
-                            result="executed",
-                            latency_ms=0
-                        )
+                        if tool_name not in recorded_tools:
+                            recorded_tools.add(tool_name)
+                            add_tool_call(
+                                tool_name=tool_name,
+                                arguments={},
+                                result="executed",
+                                latency_ms=0
+                            )
                         
             except Exception as e:
                 logger.debug(f"AgentScope: Failed to record LLM call: {e}")
@@ -232,15 +211,13 @@ def _instrument_provider_calls(agent_loop_class):
             # Record failed call
             latency_ms = (time.time() - start_time) * 1000
             try:
-                from ..monitor import get_current_trace
-                if get_current_trace():
-                    add_llm_call(
-                        prompt="Agent loop",
-                        completion=f"Error: {str(e)}",
-                        tokens_input=0,
-                        tokens_output=0,
-                        latency_ms=latency_ms
-                    )
+                add_llm_call(
+                    prompt="Agent loop",
+                    completion=f"Error: {str(e)}",
+                    tokens_input=0,
+                    tokens_output=0,
+                    latency_ms=latency_ms
+                )
             except:
                 pass
             raise

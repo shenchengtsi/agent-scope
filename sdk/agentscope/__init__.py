@@ -13,8 +13,25 @@ from .monitor import (
     add_tool_call,
     add_thinking,
     add_memory,
+    # Enhanced monitoring APIs
+    add_prompt_build_step,
+    add_skills_loading_step,
+    add_tool_selection_step,
+    add_memory_operation_step,
+    add_subagent_call_step,
+    add_reasoning_step,
 )
-from .models import TraceEvent, ExecutionStep, ToolCall, StepType, Status
+from .models import (
+    TraceEvent, ExecutionStep, ToolCall, StepType, Status,
+    # Enhanced models
+    SkillInfo,
+    PromptMessage,
+    PromptBuildInfo,
+    ToolSelectionInfo,
+    MemoryOperationInfo,
+    SubAgentCallInfo,
+    ReasoningInfo,
+)
 
 __version__ = "0.2.0"
 __all__ = [
@@ -34,10 +51,25 @@ __all__ = [
     "add_tool_call",
     "add_thinking",
     "add_memory",
+    # Enhanced monitoring APIs
+    "add_prompt_build_step",
+    "add_skills_loading_step",
+    "add_tool_selection_step",
+    "add_memory_operation_step",
+    "add_subagent_call_step",
+    "add_reasoning_step",
     # Models
     "TraceEvent",
     "ExecutionStep",
     "ToolCall",
     "StepType",
     "Status",
+    # Enhanced models
+    "SkillInfo",
+    "PromptMessage",
+    "PromptBuildInfo",
+    "ToolSelectionInfo",
+    "MemoryOperationInfo",
+    "SubAgentCallInfo",
+    "ReasoningInfo",
 ]

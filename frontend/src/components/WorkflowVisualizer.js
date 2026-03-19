@@ -64,7 +64,7 @@ const statusConfig = {
   error: { color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', icon: '✗' },
 };
 
-function WorkflowVisualizer({ steps, onStepClick, selectedStep }) {
+function WorkflowVisualizer({ steps, onStepClick, selectedStep, traceStats }) {
   if (!steps || steps.length === 0) {
     return (
       <div style={styles.empty}>
@@ -77,6 +77,13 @@ function WorkflowVisualizer({ steps, onStepClick, selectedStep }) {
 
   // Group steps by type for better visualization
   const groupedSteps = groupSteps(steps);
+  
+  // Calculate trace totals for output step
+  const traceTotals = traceStats || {
+    totalTokensIn: steps.reduce((sum, s) => sum + (s.tokens_input || 0), 0),
+    totalTokensOut: steps.reduce((sum, s) => sum + (s.tokens_output || 0), 0),
+    totalLatency: steps.reduce((sum, s) => sum + (s.latency_ms || 0), 0),
+  };
 
   return (
     <div style={styles.container}>
@@ -147,13 +154,32 @@ function WorkflowVisualizer({ steps, onStepClick, selectedStep }) {
 
                       {/* Metrics */}
                       <div style={styles.metrics}>
-                        {step.tokens_input > 0 && (
+                        {/* For output step, show trace totals */}
+                        {step.type === 'output' && traceStats && (
+                          <>
+                            <span style={{ ...styles.metric, color: '#3b82f6' }}>
+                              <span style={styles.metricIcon}>📥</span>
+                              {traceStats.totalTokensIn?.toLocaleString() || 0} tokens in
+                            </span>
+                            <span style={{ ...styles.metric, color: '#10b981' }}>
+                              <span style={styles.metricIcon}>📤</span>
+                              {traceStats.totalTokensOut?.toLocaleString() || 0} tokens out
+                            </span>
+                            <span style={{ ...styles.metric, color: '#f59e0b' }}>
+                              <span style={styles.metricIcon}>⏱️</span>
+                              {(traceStats.totalLatency / 1000)?.toFixed(2) || 0}s total
+                            </span>
+                          </>
+                        )}
+                        
+                        {/* Regular step metrics */}
+                        {step.type !== 'output' && step.tokens_input > 0 && (
                           <span style={styles.metric}>
                             <span style={styles.metricIcon}>📊</span>
                             {(step.tokens_input + step.tokens_output).toLocaleString()} tokens
                           </span>
                         )}
-                        {step.latency_ms > 0 && (
+                        {step.type !== 'output' && step.latency_ms > 0 && (
                           <span style={styles.metric}>
                             <span style={styles.metricIcon}>⏱️</span>
                             {step.latency_ms.toFixed(1)}ms
