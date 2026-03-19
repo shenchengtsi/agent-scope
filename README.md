@@ -11,6 +11,12 @@
 - 📈 **多实例支持**: 同时监控多个 agent 实例
 - 🔌 **非侵入式**: 通过 monkey-patching 自动注入，无需修改业务代码
 
+<img width="1679" height="1219" alt="agentscope 截图 0319-1" src="https://github.com/user-attachments/assets/e33c47b3-37cb-48d4-9937-c527ee3812bb" />
+
+<img width="1677" height="1224" alt="agentscope 截图 0319-2" src="https://github.com/user-attachments/assets/7bc9a7da-aa2e-4c8b-a0dc-d57f84c87545" />
+
+<img width="1693" height="1233" alt="agentscope 截图 0319-3" src="https://github.com/user-attachments/assets/d803142b-b0b4-4153-8539-7617aa736357" />
+
 ## 快速开始
 
 ### 安装
@@ -135,8 +141,3 @@ MIT License - 查看 [LICENSE](LICENSE) 文件
 ## 相关项目
 
 - [Nanobot](https://github.com/clawrenceks/nanobot) - AI agent 框架
-
-## 联系方式
-
-- GitHub Issues: https://github.com/yourusername/agentscope/issues
-- Email: your.email@example.com
