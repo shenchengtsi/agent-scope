@@ -42,6 +42,10 @@ After AgentScope:
 
 ## ✨ Key Features
 
+<img width="1682" height="1220" alt="img_v3_02vu_ee12b398-2c90-4e80-b2a0-157a35e1fefg" src="https://github.com/user-attachments/assets/50f17112-ad13-4e17-b22d-627926c6595d" />
+
+<img width="1689" height="1220" alt="img_v3_02vu_eb5db398-9bce-4972-8161-83a7e4dd089g" src="https://github.com/user-attachments/assets/2627586a-caa5-4ec2-8472-92e9f31621cb" />
+
 ### 🔍 Execution Chain Visualization
 See every step of your agent's reasoning:
 - LLM calls with prompts, responses, token usage
