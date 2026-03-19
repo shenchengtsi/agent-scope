@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-03-19
+
+### Added
+
+- **Non-intrusive Instrumentation Architecture** (Major)
+  - New `agentscope/instrumentation/` module for runtime framework injection
+  - `nanobot_instrumentor.py`: Zero-code-change integration with nanobot
+    - Monkey-patches `AgentLoop.run()` for automatic initialization
+    - Wraps `AgentLoop._process_message()` for trace context management
+    - Automatic input/output capture
+  - Supports multiple instance monitoring (6+ nanobot bots simultaneously)
+
+- **Framework Integration Guide**
+  - Complete migration guide from intrusive to non-intrusive approach
+  - Production deployment best practices
+  - PM2 integration examples
+
+### Changed
+
+- **Monitoring Architecture Overhaul**
+  - Reduced nanobot `monitoring.py` from 600+ lines to 88 lines
+  - Changed from intrusive code injection to delegation pattern
+  - All monitoring functions now delegate to AgentScope SDK
+  - Maintained backward compatibility with existing nanobot API
+
+### Fixed
+
+- **Tool Call Status Bug**
+  - Fixed incorrect parameter mapping in `add_tool_execution_step()`
+  - Tool calls now correctly show `success` status instead of `error`
+  - Added intelligent error detection (checks if result starts with "Error")
+
+### Deprecated
+
+- **Intrusive Integration Pattern**
+  - Direct modification of nanobot source files is deprecated
+  - Migration to non-intrusive instrumentation recommended
+
 ## [0.2.0] - 2026-03-17
 
 ### Added
@@ -68,5 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fault isolation (monitoring failures don't affect main business logic)
 - Real-time debugging via WebSocket
 
-[Unreleased]: https://github.com/shenchengtsi/agent-scope/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/shenchengtsi/agent-scope/compare/v0.2.0...HEAD
+[0.3.0]: https://github.com/shenchengtsi/agent-scope/releases/tag/v0.3.0
+[0.2.0]: https://github.com/shenchengtsi/agent-scope/releases/tag/v0.2.0
 [0.1.0]: https://github.com/shenchengtsi/agent-scope/releases/tag/v0.1.0

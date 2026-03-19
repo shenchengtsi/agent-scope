@@ -5,11 +5,12 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="ai-agent-scope",
-    version="0.2.0",
+    version="0.3.0",
     packages=find_packages(),
     install_requires=[
         "requests>=2.28.0",
         "pydantic>=2.0.0",
+        "loguru>=0.7.0",
     ],
     extras_require={
         "dev": [

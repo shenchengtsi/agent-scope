@@ -305,6 +305,7 @@ sanitized_args = {
 ## 📖 Documentation
 
 - [Integration Guide](docs/integration-guide.md) — Step-by-step framework integration
+- [Nanobot Integration](docs/NANOBOT_INTEGRATION_GUIDE.md) — Complete nanobot integration guide
 - [Architecture](docs/architecture.md) — Deep dive into design decisions
 - [API Reference](docs/api-reference.md) — SDK API documentation
 - [Examples](examples/) — Working code samples
