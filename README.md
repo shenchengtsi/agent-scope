@@ -1,139 +1,157 @@
+<div align="center">
+
 # AgentScope
 
-分布式 AI Agent 追踪与监控系统
+**"Observe Every Thought, Debug Every Step"**
 
-## 特性
+<p align="center">
+  <b>English</b> | <a href="README_CN.md">简体中文</a>
+</p>
 
-- 🔍 **实时追踪**: 监控 agent 执行流程，可视化调用链
-- 📊 **性能分析**: LLM 调用耗时、token 使用、成本估算
-- 🛠️ **工具追踪**: 记录工具调用参数和结果
-- 🧠 **Prompt 分析**: 查看完整的 prompt 构建过程
-- 📈 **多实例支持**: 同时监控多个 agent 实例
-- 🔌 **非侵入式**: 通过 monkey-patching 自动注入，无需修改业务代码
+Distributed AI Agent Tracing and Monitoring System
 
-<img width="1679" height="1219" alt="agentscope 截图 0319-1" src="https://github.com/user-attachments/assets/e33c47b3-37cb-48d4-9937-c527ee3812bb" />
+[![PyPI version](https://badge.fury.io/py/agentscope-monitor.svg)](https://pypi.org/project/agentscope-monitor/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
-<img width="1677" height="1224" alt="agentscope 截图 0319-2" src="https://github.com/user-attachments/assets/7bc9a7da-aa2e-4c8b-a0dc-d57f84c87545" />
+</div>
 
-<img width="1693" height="1233" alt="agentscope 截图 0319-3" src="https://github.com/user-attachments/assets/d803142b-b0b4-4153-8539-7617aa736357" />
+---
 
-## 快速开始
+## 🌟 Features
 
-### 安装
+- 🔍 **Real-time Tracing**: Monitor agent execution flow with visual call chains
+- 📊 **Performance Analysis**: LLM latency, token usage, cost estimation
+- 🛠️ **Tool Tracking**: Record tool call arguments, results, and errors
+- 🧠 **Prompt Analysis**: View complete prompt building process
+- 📈 **Multi-instance Support**: Monitor multiple agent instances simultaneously
+- 🔌 **Non-intrusive**: Auto-injection via monkey-patching, no business code changes
+
+## 📸 Screenshots
+
+<img width="1679" alt="AgentScope Screenshot 1" src="https://github.com/user-attachments/assets/e33c47b3-37cb-48d4-9937-c527ee3812bb" />
+
+<img width="1677" alt="AgentScope Screenshot 2" src="https://github.com/user-attachments/assets/7bc9a7da-aa2e-4c8b-a0dc-d57f84c87545" />
+
+<img width="1693" alt="AgentScope Screenshot 3" src="https://github.com/user-attachments/assets/d803142b-b0b4-4153-8539-7617aa736357" />
+
+## 🚀 Quick Start
+
+### Installation
 
 ```bash
-# 克隆仓库
-git clone https://github.com/yourusername/agentscope.git
+# Clone repository
+git clone https://github.com/shenchengtsi/agent-scope.git
 cd agentscope
 
-# 一键安装
+# One-click installation
 ./install.sh
 
-# 或手动安装
+# Or manual installation
 pip install -e ./sdk
 cd backend && pip install -r requirements.txt
 cd ../frontend && npm install
 ```
 
-### 启动服务
+### Start Services
 
 ```bash
-# 启动后端
+# Start backend
 ./start-backend.sh
 
-# 启动前端 (另一个终端)
+# Start frontend (in another terminal)
 ./start-frontend.sh
 
-# 或同时启动
+# Or start both
 ./start-all.sh
 ```
 
-### 配置 Nanobot
+### Configure Nanobot
 
 ```bash
-# 自动配置
+# Automatic configuration
 agentscope setup nanobot --workspace ~/.nanobot
 
-# 重启 nanobot
+# Restart nanobot
 launchctl unload ~/Library/LaunchAgents/com.nanobot.main.plist
 launchctl load ~/Library/LaunchAgents/com.nanobot.main.plist
 ```
 
-访问 http://localhost:3000 查看监控面板
+Visit http://localhost:3000 to view the dashboard.
 
-## 支持的框架
+## Supported Frameworks
 
-| 框架 | 状态 | 说明 |
-|------|------|------|
-| Nanobot | ✅ 完全支持 | 使用 agentscope setup nanobot |
-| LangChain | 🚧 开发中 | 即将支持 |
-| LlamaIndex | 🚧 开发中 | 即将支持 |
-| Custom | ✅ 支持 | 使用 SDK API 手动集成 |
+| Framework | Status | Setup Command |
+|-----------|--------|---------------|
+| Nanobot | ✅ Fully Supported | `agentscope setup nanobot --workspace ~/.nanobot` |
+| LangChain | 🚧 In Development | Coming soon |
+| LlamaIndex | 🚧 In Development | Coming soon |
+| Custom | ✅ Supported | Use SDK API directly |
 
-## 项目结构
+## Project Structure
 
 ```
 agentscope/
 ├── sdk/                    # Python SDK
 │   ├── agentscope/
-│   │   ├── monitor.py     # 核心监控 API
-│   │   ├── models.py      # 数据模型
+│   │   ├── monitor.py     # Core monitoring API
+│   │   ├── models.py      # Data models
 │   │   └── instrumentation/
 │   │       └── nanobot_instrumentor.py
 │   └── setup.py
-├── backend/               # FastAPI 后端
+├── backend/               # FastAPI backend
 │   ├── main.py
 │   └── requirements.txt
-├── frontend/              # React 前端
+├── frontend/              # React frontend
 │   └── src/
-├── install.sh             # 一键安装脚本
+├── install.sh             # One-click install script
 └── README.md
 ```
 
-## CLI 工具
+## CLI Tools
 
 ```bash
-# 配置 nanobot
+# Configure nanobot
 agentscope setup nanobot --workspace ~/.nanobot
 
-# 检查状态
+# Check status
 agentscope status
 
-# 卸载
+# Uninstall
 agentscope uninstall nanobot --workspace ~/.nanobot
 
-# 帮助
+# Help
 agentscope --help
 ```
 
-## 环境变量
+## Environment Variables
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `AGENTSCOPE_BACKEND_URL` | 后端服务地址 | `http://localhost:8000` |
-| `AGENTSCOPE_AUTO_INSTRUMENT` | 自动启用监控 | `true` |
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `AGENTSCOPE_BACKEND_URL` | Backend service URL | `http://localhost:8000` |
+| `AGENTSCOPE_AUTO_INSTRUMENT` | Enable auto-instrumentation | `true` |
 
-## 开发
+## Development
 
 ```bash
-# 安装开发依赖
+# Install dev dependencies
 pip install -e ".[dev]"
 
-# 运行测试
+# Run tests
 pytest
 
-# 代码格式化
+# Code formatting
 black sdk/agentscope
 ```
 
-## 贡献
+## Contributing
 
-欢迎贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详情。
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
-## 许可证
+## License
 
-MIT License - 查看 [LICENSE](LICENSE) 文件
+MIT License - see [LICENSE](LICENSE) for details.
 
-## 相关项目
+## Related Projects
 
-- [Nanobot](https://github.com/clawrenceks/nanobot) - AI agent 框架
+- [Nanobot](https://github.com/clawrenceks/nanobot) - AI agent framework
