@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+AgentScope Nanobot LaunchAgent Template
+
+IMPORTANT: This plist uses a workaround to ensure sitecustomize.py is loaded.
+The -c option explicitly executes sitecustomize.py before starting nanobot,
+which fixes the issue where Python loads the system sitecustomize instead of
+the one in the working directory.
+
+Usage:
+1. Copy this file to ~/Library/LaunchAgents/com.nanobot.{instance-name}.plist
+2. Replace {INSTANCE_NAME} and {INSTANCE_DIR} with your actual values
+3. Update the config path if needed
+4. Run: launchctl load ~/Library/LaunchAgents/com.nanobot.{instance-name}.plist
+-->
+<dict>
+    <key>Label</key>
+    <string>com.nanobot.{INSTANCE_NAME}</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>{PYTHON_PATH}</string>
+        <string>-c</string>
+        <string>import sys; sys.path.insert(0, '{INSTANCE_DIR}'); exec(open('{INSTANCE_DIR}/sitecustomize.py').read()); import nanobot.cli.commands; nanobot.cli.commands.app(['gateway', '--config', '{INSTANCE_DIR}/config.json'])</string>
+    </array>
+    
+    <key>WorkingDirectory</key>
+    <string>{INSTANCE_DIR}</string>
+    
+    <key>StandardOutPath</key>
+    <string>{INSTANCE_DIR}/logs/stdout.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>{INSTANCE_DIR}/logs/stderr.log</string>
+    
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <key>KeepAlive</key>
+    <true/>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>{VENV_BIN}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>PYTHONPATH</key>
+        <string>{AGENTSCOPE_SDK_PATH}:{INSTANCE_DIR}</string>
+    </dict>
+</dict>
+</plist>

@@ -79,22 +79,26 @@ except Exception as e:
 <array>
     <string>/Users/samsonchoi/AI_Workspace2/nanobot/.venv/bin/python3</string>
     <string>-c</string>
-    <string>import nanobot.cli.commands; nanobot.cli.commands.app(['gateway', '-c', '/path/to/config.json'])</string>
+    <string>import sys; sys.path.insert(0, '/Users/samsonchoi/.nanobot-{instance}'); exec(open('/Users/samsonchoi/.nanobot-{instance}/sitecustomize.py').read()); import nanobot.cli.commands; nanobot.cli.commands.app(['gateway', '--config', '/Users/samsonchoi/.nanobot-{instance}/config.json'])</string>
 </array>
 
 <key>WorkingDirectory</key>
-<string>/Users/samsonchoi/.nanobot-zhangjuzheng</string>
+<string>/Users/samsonchoi/.nanobot-{instance}</string>
 
 <key>EnvironmentVariables</key>
 <dict>
+    <key>PATH</key>
+    <string>/Users/samsonchoi/AI_Workspace2/nanobot/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>PYTHONPATH</key>
-    <string>/Users/samsonchoi/agent-scope/sdk</string>
+    <string>/Users/samsonchoi/agent-scope/sdk:/Users/samsonchoi/.nanobot-{instance}</string>
 </dict>
 ```
 
 关键配置：
 - `WorkingDirectory` 必须指向包含 `sitecustomize.py` 的目录
 - `PYTHONPATH` 确保 SDK 可被导入
+- **重要**：使用 `-c` 选项显式执行 `sitecustomize.py`，解决 Python 加载系统 sitecustomize 而非工作目录 sitecustomize 的问题
+- 参考模板：`examples/plist-templates/com.nanobot.instance.plist`
 
 ### 4. 监控范围
 
@@ -145,6 +149,32 @@ curl -s http://localhost:8000/api/traces | python3 -m json.tool
 确保：
 1. 不要同时启用 `agentscope_runner.py` 和 `sitecustomize.py`
 2. 检查 `AGENTSCOPE_AUTO_INSTRUMENT` 不要重复设置
+
+### 问题: sitecustomize.py 没有加载（AgentScope 未启动）
+
+**症状**：stderr 日志中没有 "AgentScope: Instrumentation loaded" 信息
+
+**原因**：Python 加载了系统的 sitecustomize.py，而非工作目录下的 sitecustomize.py
+
+**解决**：使用 `-c` 选项显式执行 sitecustomize.py：
+
+```xml
+<key>ProgramArguments</key>
+<array>
+    <string>/path/to/python3</string>
+    <string>-c</string>
+    <string>import sys; sys.path.insert(0, '/path/to/workdir'); exec(open('/path/to/workdir/sitecustomize.py').read()); import nanobot.cli.commands; nanobot.cli.commands.app(['gateway', '--config', '/path/to/workdir/config.json'])</string>
+</array>
+```
+
+**验证**：
+```bash
+# 检查 stderr 日志
+tail ~/.nanobot-{instance}/logs/stderr.log | grep AgentScope
+
+# 预期输出：
+# ✅ AgentScope: Instrumentation loaded
+```
 
 ## 当前配置状态
 
