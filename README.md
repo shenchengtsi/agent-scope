@@ -61,10 +61,6 @@ launchctl load ~/Library/LaunchAgents/com.nanobot.main.plist
 
 访问 http://localhost:3000 查看监控面板
 
-## 截图
-
-![AgentScope Dashboard](docs/screenshot.png)
-
 ## 支持的框架
 
 | 框架 | 状态 | 说明 |
