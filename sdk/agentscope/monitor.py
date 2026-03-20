@@ -59,6 +59,17 @@ _token_pricing: Dict[str, Dict[str, float]] = {
         "input": 0.0004,
         "output": 0.0021,
     },
+    # MiniMax models
+    # Pricing: 2.1元/百万 input, 8.4元/百万 output (2025)
+    # Converted to USD/1K: 2.1/10000 = 0.00021, 8.4/10000 = 0.00084
+    "MiniMax-M2.7": {
+        "input": 0.00021,   # $0.00021 per 1K tokens (2.1元/百万)
+        "output": 0.00084,  # $0.00084 per 1K tokens (8.4元/百万)
+    },
+    "minimax": {
+        "input": 0.00021,
+        "output": 0.00084,
+    },
 }
 
 logger = logging.getLogger(__name__)
