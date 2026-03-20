@@ -191,3 +191,72 @@ def uninstall_cmd(args):
     print("✅ Uninstall complete!")
     print()
     print("Note: Restart your nanobot instance to complete removal")
+
+
+def pricing_list_cmd(args):
+    """List all model pricing."""
+    from agentscope.pricing import list_models, get_pricing_manager
+    
+    models = list_models()
+    config_path = get_pricing_manager().get_config_path()
+    
+    print("📊 Token Pricing Configuration")
+    print(f"   Config file: {config_path or 'Using defaults (no config file)'}")
+    print()
+    
+    print(f"{'Model':<25} {'Input ($/1K)':<15} {'Output ($/1K)':<15} {'Currency'}")
+    print("-" * 70)
+    
+    for name in sorted(models.keys()):
+        p = models[name]
+        print(f"{name:<25} {p['input']:<15.6f} {p['output']:<15.6f} {p['currency']}")
+    
+    print()
+    print(f"Total: {len(models)} models configured")
+    print()
+    print("💡 Tip: Modify the config file to update prices (auto-reloads every 5s)")
+
+
+def pricing_set_cmd(args):
+    """Set pricing for a model."""
+    from agentscope.pricing import set_pricing
+    
+    set_pricing(args.model, args.input_price, args.output_price, currency=args.currency)
+    
+    print(f"✅ Set pricing for '{args.model}':")
+    print(f"   Input:  ${args.input_price}/1K tokens")
+    print(f"   Output: ${args.output_price}/1K tokens")
+    print(f"   Currency: {args.currency}")
+    print()
+    print("💾 Price saved to config file and will be used immediately!")
+
+
+def pricing_remove_cmd(args):
+    """Remove pricing for a model."""
+    from agentscope.pricing import get_pricing_manager
+    
+    pm = get_pricing_manager()
+    pm.remove(args.model)
+    
+    print(f"✅ Removed pricing for '{args.model}'")
+    print()
+    print("💾 Change saved to config file!")
+
+
+def pricing_calc_cmd(args):
+    """Calculate cost for token usage."""
+    from agentscope.pricing import calculate_cost, get_pricing
+    
+    cost = calculate_cost(args.input_tokens, args.output_tokens, args.model)
+    p = get_pricing(args.model)
+    
+    print(f"💰 Cost Calculation for '{args.model}':")
+    print()
+    print(f"   Input tokens:  {args.input_tokens:,}")
+    print(f"   Output tokens: {args.output_tokens:,}")
+    print()
+    print(f"   Pricing:")
+    print(f"     Input:  ${p['input']}/1K tokens")
+    print(f"     Output: ${p['output']}/1K tokens")
+    print()
+    print(f"   💵 Total cost: ${cost:.6f} USD")

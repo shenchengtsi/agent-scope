@@ -27,50 +27,14 @@ from .models import (
 _monitor_url: Optional[str] = None
 _current_trace: ContextVar[Optional[TraceEvent]] = ContextVar('current_trace', default=None)
 
-# Token pricing configuration (per 1K tokens in USD)
-_token_pricing: Dict[str, Dict[str, float]] = {
-    # Default pricing for common models
-    "default": {
-        "input": 0.0015,   # $0.0015 per 1K input tokens
-        "output": 0.002,   # $0.002 per 1K output tokens
-    },
-    # OpenAI GPT-4
-    "gpt-4": {
-        "input": 0.03,
-        "output": 0.06,
-    },
-    "gpt-4-turbo": {
-        "input": 0.01,
-        "output": 0.03,
-    },
-    # OpenAI GPT-3.5
-    "gpt-3.5-turbo": {
-        "input": 0.0005,
-        "output": 0.0015,
-    },
-    # Kimi models
-    # Pricing: 4元/百万 input, 21元/百万 output (2025)
-    # Converted to USD/1K: 4/10000 = 0.0004, 21/10000 = 0.0021
-    "kimi-for-coding": {
-        "input": 0.0004,   # $0.0004 per 1K tokens (4元/百万)
-        "output": 0.0021,  # $0.0021 per 1K tokens (21元/百万)
-    },
-    "kimi": {
-        "input": 0.0004,
-        "output": 0.0021,
-    },
-    # MiniMax models
-    # Pricing: 2.1元/百万 input, 8.4元/百万 output (2025)
-    # Converted to USD/1K: 2.1/10000 = 0.00021, 8.4/10000 = 0.00084
-    "MiniMax-M2.7": {
-        "input": 0.00021,   # $0.00021 per 1K tokens (2.1元/百万)
-        "output": 0.00084,  # $0.00084 per 1K tokens (8.4元/百万)
-    },
-    "minimax": {
-        "input": 0.00021,
-        "output": 0.00084,
-    },
-}
+# Import pricing module for flexible configuration
+from .pricing import (
+    get_pricing_manager,
+    get_pricing as _get_pricing,
+    set_pricing as _set_pricing,
+    calculate_cost as _calculate_cost,
+    init_pricing,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -90,24 +54,24 @@ def init_monitor(url: str = "http://localhost:8000"):
     logger.info(f"AgentScope monitor initialized: {_monitor_url}")
 
 
-def set_token_pricing(model: str, input_price: float, output_price: float):
+def set_token_pricing(model: str, input_price: float, output_price: float, persist: bool = True):
     """Set token pricing for a specific model.
     
     Args:
         model: Model name (e.g., "gpt-4", "kimi-for-coding")
         input_price: Price per 1K input tokens in USD
         output_price: Price per 1K output tokens in USD
+        persist: Whether to save to config file (default: True)
     
     Example:
         set_token_pricing("gpt-4", 0.03, 0.06)
         set_token_pricing("my-custom-model", 0.001, 0.002)
+        
+    Note:
+        Prices are automatically saved to ~/.agentscope/pricing.yaml
+        and will be loaded on next startup. No code changes needed!
     """
-    global _token_pricing
-    _token_pricing[model] = {
-        "input": input_price,
-        "output": output_price,
-    }
-    logger.info(f"Token pricing set for {model}: input=${input_price}/1K, output=${output_price}/1K")
+    _set_pricing(model, input_price, output_price, persist=persist)
 
 
 def get_token_pricing(model: str = "default") -> Dict[str, float]:
@@ -119,7 +83,7 @@ def get_token_pricing(model: str = "default") -> Dict[str, float]:
     Returns:
         Dict with "input" and "output" prices
     """
-    return _token_pricing.get(model, _token_pricing["default"])
+    return _get_pricing(model)
 
 
 def calculate_cost(tokens_input: int, tokens_output: int, model: str = "default") -> float:
@@ -133,10 +97,7 @@ def calculate_cost(tokens_input: int, tokens_output: int, model: str = "default"
     Returns:
         Cost in USD
     """
-    pricing = get_token_pricing(model)
-    input_cost = (tokens_input / 1000) * pricing["input"]
-    output_cost = (tokens_output / 1000) * pricing["output"]
-    return round(input_cost + output_cost, 6)
+    return _calculate_cost(tokens_input, tokens_output, model)
 
 
 def get_current_trace() -> Optional[TraceEvent]:
