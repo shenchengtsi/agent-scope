@@ -20,6 +20,10 @@ from .monitor import (
     add_memory_operation_step,
     add_subagent_call_step,
     add_reasoning_step,
+    # Token pricing APIs
+    set_token_pricing,
+    get_token_pricing,
+    calculate_cost,
 )
 from .models import (
     TraceEvent, ExecutionStep, ToolCall, StepType, Status,
@@ -58,6 +62,10 @@ __all__ = [
     "add_memory_operation_step",
     "add_subagent_call_step",
     "add_reasoning_step",
+    # Token pricing APIs
+    "set_token_pricing",
+    "get_token_pricing",
+    "calculate_cost",
     # Models
     "TraceEvent",
     "ExecutionStep",

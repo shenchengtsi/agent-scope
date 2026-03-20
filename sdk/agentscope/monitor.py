@@ -27,6 +27,38 @@ from .models import (
 _monitor_url: Optional[str] = None
 _current_trace: ContextVar[Optional[TraceEvent]] = ContextVar('current_trace', default=None)
 
+# Token pricing configuration (per 1K tokens in USD)
+_token_pricing: Dict[str, Dict[str, float]] = {
+    # Default pricing for common models
+    "default": {
+        "input": 0.0015,   # $0.0015 per 1K input tokens
+        "output": 0.002,   # $0.002 per 1K output tokens
+    },
+    # OpenAI GPT-4
+    "gpt-4": {
+        "input": 0.03,
+        "output": 0.06,
+    },
+    "gpt-4-turbo": {
+        "input": 0.01,
+        "output": 0.03,
+    },
+    # OpenAI GPT-3.5
+    "gpt-3.5-turbo": {
+        "input": 0.0005,
+        "output": 0.0015,
+    },
+    # Kimi models
+    "kimi-for-coding": {
+        "input": 0.001,
+        "output": 0.001,
+    },
+    "kimi": {
+        "input": 0.001,
+        "output": 0.001,
+    },
+}
+
 logger = logging.getLogger(__name__)
 
 # Track which clients have been instrumented (to avoid double wrapping)
@@ -43,6 +75,55 @@ def init_monitor(url: str = "http://localhost:8000"):
     global _monitor_url
     _monitor_url = url.rstrip('/')
     logger.info(f"AgentScope monitor initialized: {_monitor_url}")
+
+
+def set_token_pricing(model: str, input_price: float, output_price: float):
+    """Set token pricing for a specific model.
+    
+    Args:
+        model: Model name (e.g., "gpt-4", "kimi-for-coding")
+        input_price: Price per 1K input tokens in USD
+        output_price: Price per 1K output tokens in USD
+    
+    Example:
+        set_token_pricing("gpt-4", 0.03, 0.06)
+        set_token_pricing("my-custom-model", 0.001, 0.002)
+    """
+    global _token_pricing
+    _token_pricing[model] = {
+        "input": input_price,
+        "output": output_price,
+    }
+    logger.info(f"Token pricing set for {model}: input=${input_price}/1K, output=${output_price}/1K")
+
+
+def get_token_pricing(model: str = "default") -> Dict[str, float]:
+    """Get token pricing for a model.
+    
+    Args:
+        model: Model name
+    
+    Returns:
+        Dict with "input" and "output" prices
+    """
+    return _token_pricing.get(model, _token_pricing["default"])
+
+
+def calculate_cost(tokens_input: int, tokens_output: int, model: str = "default") -> float:
+    """Calculate the cost of an LLM call.
+    
+    Args:
+        tokens_input: Number of input tokens
+        tokens_output: Number of output tokens
+        model: Model name for pricing
+    
+    Returns:
+        Cost in USD
+    """
+    pricing = get_token_pricing(model)
+    input_cost = (tokens_input / 1000) * pricing["input"]
+    output_cost = (tokens_output / 1000) * pricing["output"]
+    return round(input_cost + output_cost, 6)
 
 
 def get_current_trace() -> Optional[TraceEvent]:
@@ -486,15 +567,39 @@ def add_llm_call(
     tokens_input: int = 0,
     tokens_output: int = 0,
     latency_ms: float = 0.0,
+    model: str = "default",
 ):
-    """Manually record an LLM call step."""
+    """Manually record an LLM call step.
+    
+    Args:
+        prompt: The prompt sent to LLM
+        completion: The completion returned from LLM
+        tokens_input: Number of input tokens
+        tokens_output: Number of output tokens
+        latency_ms: Latency in milliseconds
+        model: Model name for cost calculation (default: "default")
+    """
+    # Calculate cost
+    cost = calculate_cost(tokens_input, tokens_output, model)
+    
+    # Update trace cost estimate
+    trace = get_current_trace()
+    if trace:
+        trace.cost_estimate += cost
+        trace.total_tokens += tokens_input + tokens_output
+    
     add_step(
         step_type=StepType.LLM_CALL,
         content=f"Prompt: {prompt[:200]}...\nCompletion: {completion[:200]}...",
         tokens_input=tokens_input,
         tokens_output=tokens_output,
         latency_ms=latency_ms,
-        metadata={"prompt": prompt, "completion": completion},
+        metadata={
+            "prompt": prompt,
+            "completion": completion,
+            "model": model,
+            "cost": cost,
+        },
     )
 
 
