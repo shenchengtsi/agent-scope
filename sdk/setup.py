@@ -30,6 +30,7 @@ setup(
     install_requires=[
         "requests>=2.25.0",
         "loguru>=0.6.0",
+        "pyyaml>=6.0",
     ],
     extras_require={
         "nanobot": ["nanobot-ai>=0.1.0"],
