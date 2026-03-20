@@ -49,13 +49,15 @@ _token_pricing: Dict[str, Dict[str, float]] = {
         "output": 0.0015,
     },
     # Kimi models
+    # Pricing: 4元/百万 input, 21元/百万 output (2025)
+    # Converted to USD/1K: 4/10000 = 0.0004, 21/10000 = 0.0021
     "kimi-for-coding": {
-        "input": 0.001,
-        "output": 0.001,
+        "input": 0.0004,   # $0.0004 per 1K tokens (4元/百万)
+        "output": 0.0021,  # $0.0021 per 1K tokens (21元/百万)
     },
     "kimi": {
-        "input": 0.001,
-        "output": 0.001,
+        "input": 0.0004,
+        "output": 0.0021,
     },
 }
 
