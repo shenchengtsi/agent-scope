@@ -11,7 +11,7 @@ from ..monitor import (
     init_monitor, trace_scope, add_step, add_llm_call, add_tool_call,
     add_prompt_build_step, add_tool_selection_step
 )
-from ..models import StepType, Status
+from ..models import StepType, Status, ExecutionStep
 
 
 # Get backend URL from environment or use default
@@ -189,6 +189,22 @@ def _instrument_provider_calls(agent_loop_class):
     @functools.wraps(original_run_agent_loop)
     async def monitored_run_agent_loop(self, initial_messages, on_progress=None, on_stream=None, on_stream_end=None, **kwargs):
         start_time = time.time()
+        
+        # Record agent loop start
+        loop_step = None
+        try:
+            from ..monitor import get_current_trace
+            trace = get_current_trace()
+            if trace:
+                loop_step = ExecutionStep(
+                    type=StepType.THINKING,  # Using THINKING as agent_loop type
+                    content=f"Agent Loop: Processing {len(initial_messages)} messages",
+                    status=Status.RUNNING,
+                    metadata={"message_count": len(initial_messages)}
+                )
+                trace.add_step(loop_step)
+        except Exception as e:
+            logger.debug(f"AgentScope: Failed to add agent_loop step: {e}")
 
         # Record tool selection once at the start
         try:
@@ -219,6 +235,12 @@ def _instrument_provider_calls(agent_loop_class):
             # Calculate metrics
             latency_ms = (time.time() - start_time) * 1000
             final_content, tools_used, all_msgs = result
+            
+            # Update agent loop step to success
+            if loop_step:
+                loop_step.status = Status.SUCCESS
+                loop_step.latency_ms = latency_ms
+                loop_step.content += f"\n✓ Completed in {latency_ms:.0f}ms"
             
             # Record LLM calls summary
             try:
@@ -253,6 +275,11 @@ def _instrument_provider_calls(agent_loop_class):
             return result
             
         except Exception as e:
+            # Update agent loop step to error
+            if loop_step:
+                loop_step.status = Status.ERROR
+                loop_step.content += f"\n✗ Error: {str(e)[:100]}"
+            
             # Record failed call
             latency_ms = (time.time() - start_time) * 1000
             try:
