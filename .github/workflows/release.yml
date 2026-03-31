@@ -53,28 +53,28 @@ jobs:
 
   create-release:
     needs: build-and-publish
-    if: always() && (needs.build-and-publish.result == 'success' || needs.build-and-publish.result == 'skipped')
+    if: always()
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Create Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
+        name: Release ${{ github.ref_name }}
         draft: false
         prerelease: false
+        generate_release_notes: true
         body: |
-          ## What's New
+          ## 🎯 What's New / 更新内容
           
-          See [CHANGELOG.md](CHANGELOG.md) for details.
+          See [CHANGELOG.md](CHANGELOG.md) for full details.
           
-          ## Installation
+          ## 📦 Installation / 安装
           
           ```bash
           pip install agentscope==${{ github.ref_name }}
           ```
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
