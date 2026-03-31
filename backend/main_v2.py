@@ -42,6 +42,65 @@ class ToolCallData(BaseModel):
     latency_ms: float = 0.0
 
 
+class PromptMessageData(BaseModel):
+    role: str
+    content: str
+    name: Optional[str] = None
+    tool_calls: Optional[List[Dict]] = None
+    tool_call_id: Optional[str] = None
+
+
+class PromptBuildInfoData(BaseModel):
+    messages: List[PromptMessageData] = []
+    system_prompt: str = ""
+    context_window: int = 0
+    max_tokens: int = 0
+    temperature: float = 0.0
+    top_p: float = 0.0
+    model: str = ""
+
+
+class SkillInfoData(BaseModel):
+    name: str
+    description: str = ""
+    status: str = "loaded"
+    error: Optional[str] = None
+    load_time_ms: float = 0.0
+
+
+class ToolSelectionInfoData(BaseModel):
+    selected_tool: str
+    available_tools: List[Dict] = []
+    selection_reason: str = ""
+    confidence: float = 0.0
+    tool_call_id: str = ""
+
+
+class MemoryOperationInfoData(BaseModel):
+    operation: str = ""
+    key: str = ""
+    namespace: str = "default"
+    data_preview: str = ""
+    tokens_affected: int = 0
+    operation_details: Dict[str, Any] = {}
+
+
+class SubAgentCallInfoData(BaseModel):
+    agent_name: str = ""
+    agent_id: str = ""
+    input_query: str = ""
+    child_trace_id: Optional[str] = None
+    timeout: float = 0.0
+    result_preview: str = ""
+
+
+class ReasoningInfoData(BaseModel):
+    reasoning_content: str = ""
+    reasoning_type: str = ""
+    plan_steps: List[str] = []
+    confidence: float = 0.0
+
+
 class ExecutionStepData(BaseModel):
     id: str
     type: str
@@ -52,6 +111,17 @@ class ExecutionStepData(BaseModel):
     latency_ms: float = 0.0
     tool_call: Optional[ToolCallData] = None
     metadata: dict = {}
+    status: str = "pending"
+    # Enhanced monitoring fields
+    prompt_info: Optional[PromptBuildInfoData] = None
+    skill_info: Optional[List[SkillInfoData]] = None
+    tool_selection: Optional[ToolSelectionInfoData] = None
+    memory_info: Optional[MemoryOperationInfoData] = None
+    subagent_info: Optional[SubAgentCallInfoData] = None
+    reasoning_info: Optional[ReasoningInfoData] = None
+    # Hierarchy
+    parent_step_id: Optional[str] = None
+    depth: int = 0
 
 
 class TraceData(BaseModel):
