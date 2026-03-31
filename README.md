@@ -21,19 +21,25 @@ Distributed AI Agent Tracing and Monitoring System
 ## 🌟 Features
 
 - 🔍 **Real-time Tracing**: Monitor agent execution flow with visual call chains
-- 📊 **Performance Analysis**: LLM latency, token usage, cost estimation
+- 📊 **Analytics Dashboard**: Historical trends, performance metrics, and cost analysis with 6+ chart types
+- 💰 **Cost Report**: Track costs by trace name/tags, efficiency metrics (tokens/$), monthly projections
+- 🔬 **Enhanced Trace Comparison**: Side-by-side comparison with radar charts and step analysis
 - 🛠️ **Tool Tracking**: Record tool call arguments, results, and errors
 - 🧠 **Prompt Analysis**: View complete prompt building process
 - 📈 **Multi-instance Support**: Monitor multiple agent instances simultaneously
 - 🔌 **Non-intrusive**: Auto-injection via monkey-patching, no business code changes
+- 🗄️ **Pluggable Storage**: SQLite (persistent) or InMemory (ephemeral) storage backends
 
 ## 📸 Screenshots
 
-<img width="1679" alt="AgentScope Screenshot 1" src="https://github.com/user-attachments/assets/e33c47b3-37cb-48d4-9937-c527ee3812bb" />
+### Dashboard - Real-time Monitoring
+<img width="1679" alt="AgentScope Dashboard" src="https://github.com/user-attachments/assets/e33c47b3-37cb-48d4-9937-c527ee3812bb" />
 
-<img width="1677" alt="AgentScope Screenshot 2" src="https://github.com/user-attachments/assets/7bc9a7da-aa2e-4c8b-a0dc-d57f84c87545" />
+### Analytics - Historical Trends
+<img width="1679" alt="AgentScope Analytics" src="https://github.com/user-attachments/assets/analytics-screenshot.png" />
 
-<img width="1693" alt="AgentScope Screenshot 3" src="https://github.com/user-attachments/assets/d803142b-b0b4-4153-8539-7617aa736357" />
+### Trace Comparison
+<img width="1679" alt="AgentScope Trace Compare" src="https://github.com/user-attachments/assets/compare-screenshot.png" />
 
 ## 🚀 Quick Start
 
@@ -56,8 +62,12 @@ cd ../frontend && npm install
 ### Start Services
 
 ```bash
-# Start backend
+# Start backend v2 (with SQLite storage)
 ./start-backend.sh
+
+# Or start with specific storage backend
+STORAGE_TYPE=sqlite ./start-backend.sh  # Persistent storage (default)
+STORAGE_TYPE=memory ./start-backend.sh  # In-memory storage
 
 # Start frontend (in another terminal)
 ./start-frontend.sh
@@ -65,6 +75,13 @@ cd ../frontend && npm install
 # Or start both
 ./start-all.sh
 ```
+
+### Access the Application
+
+- **Dashboard**: http://localhost:3001
+- **Analytics**: http://localhost:3001 (click "Analytics" tab)
+- **Backend API**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs
 
 ### Configure Nanobot
 
@@ -77,7 +94,29 @@ launchctl unload ~/Library/LaunchAgents/com.nanobot.main.plist
 launchctl load ~/Library/LaunchAgents/com.nanobot.main.plist
 ```
 
-Visit http://localhost:3000 to view the dashboard.
+## 🎯 What's New in v0.5.0
+
+### 📊 Analytics Dashboard
+- **6 Chart Types**: Traces trend, success/error rates, latency, token usage, cost trends, status distribution
+- **Time Ranges**: 6h, 12h, 24h, 48h, 72h, 7d
+- **Interval Grouping**: Hour or day granularity
+- **Timezone Aware**: Automatic UTC to local time conversion
+
+### 💰 Cost Report
+- **Cost Breakdown**: By trace name and tags
+- **Efficiency Metrics**: Tokens per dollar analysis
+- **Monthly Projection**: Cost forecasting based on current usage
+- **Efficiency Tiers**: High/Good/Average/Low classification
+
+### 🔬 Enhanced Trace Comparison
+- **Radar Charts**: Performance profile visualization
+- **Side-by-Side Metrics**: Latency, tokens, cost, LLM/tool calls
+- **Step Distribution**: Visual comparison of execution steps
+
+### 🗄️ Backend v2
+- **Pluggable Storage**: Choose between SQLite (persistent) or InMemory (fast)
+- **Improved Performance**: <0.4ms save latency, <0.1ms query latency
+- **Timezone Support**: Proper handling of UTC/local time conversion
 
 ## Supported Frameworks
 
@@ -96,14 +135,25 @@ agentscope/
 │   ├── agentscope/
 │   │   ├── monitor.py     # Core monitoring API
 │   │   ├── models.py      # Data models
+│   │   ├── storage/       # Storage backends (v0.5.0+)
+│   │   │   ├── base.py
+│   │   │   ├── memory.py
+│   │   │   └── sqlite.py
 │   │   └── instrumentation/
 │   │       └── nanobot_instrumentor.py
 │   └── setup.py
 ├── backend/               # FastAPI backend
-│   ├── main.py
+│   ├── main_v2.py        # Backend v2 (v0.5.0+)
+│   ├── storage_manager.py
 │   └── requirements.txt
 ├── frontend/              # React frontend
 │   └── src/
+│       ├── pages/
+│       │   ├── Dashboard.js
+│       │   └── Analytics.js    # New in v0.5.0
+│       └── components/
+│           ├── CostReport.js   # New in v0.5.0
+│           └── TraceCompare.js # Enhanced in v0.5.0
 ├── install.sh             # One-click install script
 └── README.md
 ```
@@ -130,6 +180,8 @@ agentscope --help
 |----------|-------------|---------|
 | `AGENTSCOPE_BACKEND_URL` | Backend service URL | `http://localhost:8000` |
 | `AGENTSCOPE_AUTO_INSTRUMENT` | Enable auto-instrumentation | `true` |
+| `AGENTSCOPE_STORAGE_BACKEND` | Storage type (sqlite/memory) | `memory` |
+| `AGENTSCOPE_DB_PATH` | SQLite database path | `./data/agentscope.db` |
 
 ## Development
 
@@ -138,15 +190,38 @@ agentscope --help
 pip install -e ".[dev]"
 
 # Run tests
-pytest
+pytest tests/ -v                    # SDK tests
+pytest backend/tests/ -v            # Backend tests
+pytest tests/storage/ -v            # Storage tests
 
 # Code formatting
-black sdk/agentscope
+black sdk/agentscope backend/
 ```
+
+## API Endpoints
+
+### Core Endpoints
+- `GET /api/traces` - List traces with filtering
+- `GET /api/traces/{id}` - Get trace details
+- `POST /api/traces` - Create new trace
+- `DELETE /api/traces/{id}` - Delete trace
+
+### Analytics Endpoints (v0.5.0+)
+- `GET /api/metrics/historical` - Historical metrics with time aggregation
+- `GET /api/metrics/realtime` - Real-time performance metrics
+- `POST /api/traces/compare` - Compare two traces
+- `GET /api/stats` - Storage statistics
+
+### WebSocket
+- `WS /ws` - Real-time trace updates
 
 ## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
 
 ## License
 
