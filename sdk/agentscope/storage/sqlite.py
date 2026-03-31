@@ -46,7 +46,12 @@ class SQLiteStorage(BaseStorage):
                         steps TEXT,  -- JSON array
                         child_trace_ids TEXT,  -- JSON array
                         parent_trace_id TEXT,
-                        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                        total_tokens INTEGER DEFAULT 0,
+                        total_latency_ms REAL DEFAULT 0.0,
+                        cost_estimate REAL DEFAULT 0.0,
+                        llm_call_count INTEGER DEFAULT 0,
+                        tool_call_count INTEGER DEFAULT 0
                     )
                 """)
                 
@@ -83,8 +88,9 @@ class SQLiteStorage(BaseStorage):
                     """
                     INSERT OR REPLACE INTO traces 
                     (id, name, status, start_time, end_time, duration_ms,
-                     input_query, tags, metadata, steps, child_trace_ids, parent_trace_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     input_query, tags, metadata, steps, child_trace_ids, parent_trace_id,
+                     total_tokens, total_latency_ms, cost_estimate, llm_call_count, tool_call_count)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         trace_id,
@@ -99,11 +105,16 @@ class SQLiteStorage(BaseStorage):
                         json.dumps(trace.get("steps", [])),
                         json.dumps(trace.get("child_trace_ids", [])),
                         trace.get("parent_trace_id"),
+                        trace.get("total_tokens", 0),
+                        trace.get("total_latency_ms", 0.0),
+                        trace.get("cost_estimate", 0.0),
+                        trace.get("llm_call_count", 0),
+                        trace.get("tool_call_count", 0),
                     )
                 )
                 conn.commit()
             
-            logger.debug(f"Saved trace {trace_id} to SQLite")
+            logger.debug(f"Saved trace {trace_id} to SQLite (tokens={trace.get('total_tokens', 0)}, cost={trace.get('cost_estimate', 0.0)})")
             return trace_id
             
         except sqlite3.Error as e:

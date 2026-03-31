@@ -36,14 +36,23 @@ class InMemoryStorage(BaseStorage):
             
             # Store copy to prevent external mutation
             import copy
-            self._traces[trace_id] = copy.deepcopy(trace)
+            trace_copy = copy.deepcopy(trace)
+            
+            # Ensure statistics fields exist with defaults
+            trace_copy.setdefault("total_tokens", 0)
+            trace_copy.setdefault("total_latency_ms", 0.0)
+            trace_copy.setdefault("cost_estimate", 0.0)
+            trace_copy.setdefault("llm_call_count", 0)
+            trace_copy.setdefault("tool_call_count", 0)
+            
+            self._traces[trace_id] = trace_copy
             
             # Evict oldest if over limit
             while len(self._traces) > self._max_traces:
                 oldest_id, _ = self._traces.popitem(last=False)
                 logger.debug(f"Evicted oldest trace: {oldest_id}")
             
-            logger.debug(f"Saved trace {trace_id} to memory storage")
+            logger.debug(f"Saved trace {trace_id} to memory storage (tokens={trace_copy.get('total_tokens', 0)}, cost={trace_copy.get('cost_estimate', 0.0)})")
             return trace_id
             
         except Exception as e:
