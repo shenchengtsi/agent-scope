@@ -18,7 +18,7 @@ from contextlib import contextmanager
 from datetime import datetime
 
 from .models import (
-    TraceEvent, ExecutionStep, ToolCall, StepType, Status,
+    TraceEvent, ExecutionStep, ToolCall, LLMCallInfo, StepType, Status,
     SkillInfo, PromptMessage, PromptBuildInfo, ToolSelectionInfo,
     MemoryOperationInfo, SubAgentCallInfo, ReasoningInfo,
 )
@@ -558,23 +558,40 @@ def add_llm_call(
     
     # Update trace cost estimate
     trace = get_current_trace()
-    if trace:
-        trace.cost_estimate += cost
-        trace.total_tokens += tokens_input + tokens_output
+    if not trace:
+        return
     
-    add_step(
-        step_type=StepType.LLM_CALL,
+    trace.cost_estimate += cost
+    trace.total_tokens += tokens_input + tokens_output
+    
+    # Create LLM call info
+    llm_call = LLMCallInfo(
+        prompt=prompt,
+        completion=completion,
+        model=model,
+        tokens_input=tokens_input,
+        tokens_output=tokens_output,
+        latency_ms=latency_ms,
+        cost=cost,
+    )
+    
+    # Create step with llm_call field
+    step = ExecutionStep(
+        type=StepType.LLM_CALL,
         content=f"Prompt: {prompt[:200]}...\nCompletion: {completion[:200]}...",
         tokens_input=tokens_input,
         tokens_output=tokens_output,
         latency_ms=latency_ms,
+        llm_call=llm_call,
         metadata={
             "prompt": prompt,
             "completion": completion,
             "model": model,
             "cost": cost,
         },
+        status=Status.SUCCESS,
     )
+    trace.add_step(step)
 
 
 def add_tool_call(

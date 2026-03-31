@@ -23,8 +23,8 @@ export function useWebSocket() {
         try {
           const message = JSON.parse(event.data);
           
-          if (message.type === 'initial') {
-            setTraces(message.data || []);
+          if (message.type === 'initial' || message.type === 'initial_data') {
+            setTraces(message.data || message.traces || []);
           } else if (message.type === 'trace_update') {
             setTraces((prevTraces) => {
               const existingIndex = prevTraces.findIndex(t => t.id === message.data.id);

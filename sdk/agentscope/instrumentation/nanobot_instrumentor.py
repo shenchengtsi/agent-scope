@@ -3,7 +3,7 @@
 import functools
 import time
 import os
-from typing import Any, Optional
+from typing import Any, Optional, Callable
 
 from loguru import logger
 
@@ -16,6 +16,9 @@ from ..models import StepType, Status, ExecutionStep
 
 # Get backend URL from environment or use default
 AGENTSCOPE_BACKEND_URL = os.getenv("AGENTSCOPE_BACKEND_URL", "http://localhost:8000")
+
+# Constants
+TOOL_CALL_PENDING_RESULT = "[Tool call requested by LLM, execution pending]"
 
 
 _instrumented = False
@@ -51,11 +54,6 @@ def _instrument_context_builder(context_builder_class):
                 except:
                     pass
             
-            # Note: Skills loading is already accurately recorded by nanobot's native
-            # monitoring in load_skills_for_context(). We don't record it here because
-            # list_skills() returns ALL available skills (e.g., 17), not the ACTUALLY
-            # loaded skills for this request (e.g., 2).
-            
             # Record prompt build with sequence info
             if result and isinstance(result, list):
                 add_prompt_build_step(
@@ -67,7 +65,7 @@ def _instrument_context_builder(context_builder_class):
                 logger.debug(f"AgentScope: Recorded prompt with {len(result)} messages (call #{call_num})")
                     
         except Exception as e:
-            logger.debug(f"AgentScope: Failed to record prompt build: {e}")
+            logger.warning(f"AgentScope: Failed to record prompt build: {e}")
         
         return result
     
@@ -87,7 +85,7 @@ def _instrument_agent_loop(agent_loop_class):
             init_monitor(AGENTSCOPE_BACKEND_URL)
             logger.info("AgentScope: Non-intrusive monitoring enabled")
         except Exception as e:
-            logger.debug(f"AgentScope: Failed to initialize: {e}")
+            logger.warning(f"AgentScope: Failed to initialize: {e}")
         
         return await original_run(self)
     
@@ -119,9 +117,9 @@ def _instrument_agent_loop(agent_loop_class):
         
         # Wrap on_stream_end callback
         original_on_stream_end = on_stream_end
-        async def wrapped_on_stream_end():
+        async def wrapped_on_stream_end(*args, **kwargs):
             if original_on_stream_end:
-                await original_on_stream_end()
+                await original_on_stream_end(*args, **kwargs)
 
         # Create trace context
         with trace_scope(
@@ -176,40 +174,160 @@ def _instrument_agent_loop(agent_loop_class):
     
     agent_loop_class._process_message = monitored_process_message
     
-    # Instrument LLM provider calls
-    _instrument_provider_calls(agent_loop_class)
-    
     logger.info("AgentScope: AgentLoop instrumented")
 
 
-def _instrument_provider_calls(agent_loop_class):
-    """Instrument LLM provider calls."""
-    original_run_agent_loop = agent_loop_class._run_agent_loop
+async def _record_llm_iteration(
+    original_func: Callable,
+    iteration_count: int,
+    is_streaming: bool,
+    all_tools_used: list,
+    **kwargs
+) -> Any:
+    """
+    Record a single LLM iteration.
     
-    @functools.wraps(original_run_agent_loop)
-    async def monitored_run_agent_loop(self, initial_messages, on_progress=None, on_stream=None, on_stream_end=None, **kwargs):
-        start_time = time.time()
-        
-        # Record agent loop start
-        loop_step = None
+    This is a shared function for both streaming and non-streaming LLM calls.
+    
+    Args:
+        original_func: The original LLM function to call
+        iteration_count: Current iteration number
+        is_streaming: Whether this is a streaming call
+        all_tools_used: List to collect tool names
+        **kwargs: Arguments passed to the original function
+    
+    Returns:
+        The response from the original function
+    """
+    # Record prompt build before LLM call
+    messages = kwargs.get('messages', [])
+    tools = kwargs.get('tools', [])
+    if messages:
         try:
-            from ..monitor import get_current_trace
-            trace = get_current_trace()
-            if trace:
-                loop_step = ExecutionStep(
-                    type=StepType.THINKING,  # Using THINKING as agent_loop type
-                    content=f"Agent Loop: Processing {len(initial_messages)} messages",
-                    status=Status.RUNNING,
-                    metadata={"message_count": len(initial_messages)}
-                )
-                trace.add_step(loop_step)
+            # Build comprehensive model config with all LLM parameters
+            model_config = {
+                "model": kwargs.get('model', 'unknown'),
+                "iteration": iteration_count,
+                "streaming": is_streaming,
+            }
+            
+            # Add optional LLM parameters if present
+            if 'temperature' in kwargs:
+                model_config["temperature"] = kwargs['temperature']
+            if 'max_tokens' in kwargs:
+                model_config["max_tokens"] = kwargs['max_tokens']
+            if 'reasoning_effort' in kwargs:
+                model_config["reasoning_effort"] = kwargs['reasoning_effort']
+            
+            # Add tools info
+            if tools:
+                tool_names = []
+                for tool in tools:
+                    if isinstance(tool, dict):
+                        name = tool.get('name') or tool.get('function', {}).get('name', 'unknown')
+                        tool_names.append(name)
+                if tool_names:
+                    model_config["tools_available"] = len(tool_names)
+                    model_config["tool_names"] = tool_names[:10]  # First 10 tools
+            
+            add_prompt_build_step(
+                messages=messages,
+                system_prompt="",
+                model_config=model_config,
+                metadata={
+                    "iteration": iteration_count,
+                    "type": "agent_loop_iteration",
+                    "streaming": is_streaming,
+                    "tools_count": len(tools) if tools else 0,
+                    "has_temperature": 'temperature' in kwargs,
+                    "has_max_tokens": 'max_tokens' in kwargs,
+                    "has_reasoning_effort": 'reasoning_effort' in kwargs,
+                }
+            )
+            tool_info = f", {len(tools)} tools" if tools else ""
+            logger.debug(f"AgentScope: Recorded iteration #{iteration_count} prompt "
+                        f"({len(messages)} messages{tool_info}, streaming={is_streaming})")
         except Exception as e:
-            logger.debug(f"AgentScope: Failed to add agent_loop step: {e}")
+            logger.warning(f"AgentScope: Failed to record prompt: {e}")
+    
+    # Call LLM
+    start_time = time.time()
+    try:
+        response = await original_func(**kwargs)
+    except Exception as e:
+        logger.error(f"AgentScope: LLM call failed in iteration #{iteration_count}: {e}")
+        raise
+    
+    latency_ms = (time.time() - start_time) * 1000
+    
+    # Record LLM call
+    try:
+        # Build prompt preview (last 3 messages)
+        prompt_text = "\n".join([
+            f"{m.get('role', 'unknown')}: {str(m.get('content', ''))[:200]}"
+            for m in messages[-3:]
+        ])
+        completion_text = str(getattr(response, 'content', '') or '')[:500]
+        
+        # Get token usage (use actual or estimate)
+        usage = getattr(response, 'usage', None) or {}
+        tokens_in = usage.get('prompt_tokens')
+        tokens_out = usage.get('completion_tokens')
+        
+        if tokens_in is None:
+            # Estimate: ~4 chars per token for English/Chinese mix
+            tokens_in = sum(len(str(m.get('content', ''))) // 4 for m in messages)
+        if tokens_out is None:
+            tokens_out = len(completion_text) // 4
+        
+        add_llm_call(
+            prompt=f"[Iteration {iteration_count}] {prompt_text[:500]}",
+            completion=completion_text,
+            tokens_input=tokens_in,
+            tokens_output=tokens_out,
+            latency_ms=latency_ms
+        )
+        logger.debug(f"AgentScope: Recorded iteration #{iteration_count} LLM call "
+                    f"(tokens_in={tokens_in}, tokens_out={tokens_out})")
+        
+        # Record tool calls if present (LLM requested tools)
+        tool_calls = getattr(response, 'tool_calls', None)
+        if tool_calls:
+            for tc in tool_calls:
+                tool_name = getattr(tc, 'name', str(tc))
+                tool_args = getattr(tc, 'arguments', {})
+                if not isinstance(tool_args, dict):
+                    tool_args = {"args": str(tool_args)}
+                
+                add_tool_call(
+                    tool_name=tool_name,
+                    arguments=tool_args,
+                    result=TOOL_CALL_PENDING_RESULT,
+                    latency_ms=0
+                )
+                all_tools_used.append(tool_name)
+                logger.debug(f"AgentScope: Recorded tool call request: {tool_name}")
+                    
+    except Exception as e:
+        logger.warning(f"AgentScope: Failed to record LLM call: {e}")
+    
+    return response
 
-        # Record tool selection once at the start
+
+def _instrument_agent_runner(agent_runner_class):
+    """Instrument AgentRunner to capture each iteration of the agent loop."""
+    original_run = agent_runner_class.run
+    
+    @functools.wraps(original_run)
+    async def monitored_run(self, spec):
+        # Get current trace (created by _process_message)
+        from ..monitor import get_current_trace
+        trace = get_current_trace()
+        
+        # Record available tools once
         try:
-            if hasattr(self, 'tools') and self.tools:
-                tool_defs = self.tools.get_definitions()
+            if hasattr(spec, 'tools') and spec.tools:
+                tool_defs = spec.tools.get_definitions()
                 if tool_defs:
                     available_tools = []
                     for tool in tool_defs:
@@ -223,79 +341,66 @@ def _instrument_provider_calls(agent_loop_class):
                         add_tool_selection_step(
                             selected_tool="(available)",
                             available_tools=available_tools,
-                            reason=f"{len(available_tools)} tools available"
+                            reason=f"{len(available_tools)} tools available for agent loop"
                         )
         except Exception as e:
-            logger.debug(f"AgentScope: Failed to record tools: {e}")
+            logger.warning(f"AgentScope: Failed to record tool selection: {e}")
+        
+        # Track iteration count
+        iteration_count = 0
+        all_tools_used = []
+        
+        # Store original provider methods
+        original_chat_with_retry = self.provider.chat_with_retry
+        original_chat_stream_with_retry = self.provider.chat_stream_with_retry
+        
+        # Create monitored wrappers using shared logic
+        async def monitored_chat_with_retry(**kwargs):
+            nonlocal iteration_count
+            iteration_count += 1
+            return await _record_llm_iteration(
+                original_chat_with_retry,
+                iteration_count,
+                is_streaming=False,
+                all_tools_used=all_tools_used,
+                **kwargs
+            )
+        
+        async def monitored_chat_stream_with_retry(**kwargs):
+            nonlocal iteration_count
+            iteration_count += 1
+            logger.info(f"AgentScope: LLM streaming call iteration #{iteration_count}")
+            return await _record_llm_iteration(
+                original_chat_stream_with_retry,
+                iteration_count,
+                is_streaming=True,
+                all_tools_used=all_tools_used,
+                **kwargs
+            )
+        
+        # Replace provider methods temporarily
+        logger.info(f"AgentScope: Replacing provider methods on {type(self.provider).__name__}")
+        self.provider.chat_with_retry = monitored_chat_with_retry
+        self.provider.chat_stream_with_retry = monitored_chat_stream_with_retry
         
         try:
-            # Execute the loop
-            result = await original_run_agent_loop(self, initial_messages, on_progress=on_progress, on_stream=on_stream, on_stream_end=on_stream_end, **kwargs)
+            # Execute the agent run
+            logger.debug(f"AgentScope: Starting agent run with monitoring")
+            result = await original_run(self, spec)
             
-            # Calculate metrics
-            latency_ms = (time.time() - start_time) * 1000
-            final_content, tools_used, all_msgs = result
-            
-            # Update agent loop step to success
-            if loop_step:
-                loop_step.status = Status.SUCCESS
-                loop_step.latency_ms = latency_ms
-                loop_step.content += f"\n✓ Completed in {latency_ms:.0f}ms"
-            
-            # Record LLM calls summary
-            try:
-                # Count tokens roughly
-                tokens_in = sum(len(str(m.get('content', ''))) // 4 for m in initial_messages)
-                tokens_out = len(str(final_content)) // 4 if final_content else 0
-                
-                add_llm_call(
-                    prompt=f"Agent loop with {len(initial_messages)} messages",
-                    completion=final_content[:200] if final_content else "",
-                    tokens_input=tokens_in,
-                    tokens_output=tokens_out,
-                    latency_ms=latency_ms
-                )
-                
-                # Record unique tool calls
-                if tools_used:
-                    recorded_tools = set()
-                    for tool_name in tools_used:
-                        if tool_name not in recorded_tools:
-                            recorded_tools.add(tool_name)
-                            add_tool_call(
-                                tool_name=tool_name,
-                                arguments={},
-                                result="executed",
-                                latency_ms=0
-                            )
-                        
-            except Exception as e:
-                logger.debug(f"AgentScope: Failed to record LLM call: {e}")
+            # Record summary
+            logger.info(f"AgentScope: Agent loop completed with {iteration_count} iterations, "
+                       f"{len(all_tools_used)} tool calls")
             
             return result
             
-        except Exception as e:
-            # Update agent loop step to error
-            if loop_step:
-                loop_step.status = Status.ERROR
-                loop_step.content += f"\n✗ Error: {str(e)[:100]}"
-            
-            # Record failed call
-            latency_ms = (time.time() - start_time) * 1000
-            try:
-                add_llm_call(
-                    prompt="Agent loop",
-                    completion=f"Error: {str(e)}",
-                    tokens_input=0,
-                    tokens_output=0,
-                    latency_ms=latency_ms
-                )
-            except:
-                pass
-            raise
+        finally:
+            # Restore original methods
+            self.provider.chat_with_retry = original_chat_with_retry
+            self.provider.chat_stream_with_retry = original_chat_stream_with_retry
     
-    agent_loop_class._run_agent_loop = monitored_run_agent_loop
-    logger.info("AgentScope: AgentLoop._run_agent_loop instrumented")
+    agent_runner_class.run = monitored_run
+    logger.info("AgentScope: AgentRunner instrumented")
 
 
 def instrument():
@@ -309,9 +414,11 @@ def instrument():
     try:
         from nanobot.agent.loop import AgentLoop
         from nanobot.agent.context import ContextBuilder
+        from nanobot.agent.runner import AgentRunner
         
         _instrument_context_builder(ContextBuilder)
         _instrument_agent_loop(AgentLoop)
+        _instrument_agent_runner(AgentRunner)
         
         _instrumented = True
         logger.info("AgentScope: Non-intrusive instrumentation complete")

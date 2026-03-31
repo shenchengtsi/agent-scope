@@ -42,6 +42,17 @@ class ToolCallData(BaseModel):
     latency_ms: float = 0.0
 
 
+class LLMCallInfoData(BaseModel):
+    id: str
+    prompt: str = ""
+    completion: str = ""
+    model: str = "default"
+    tokens_input: int = 0
+    tokens_output: int = 0
+    latency_ms: float = 0.0
+    cost: float = 0.0
+
+
 class PromptMessageData(BaseModel):
     role: str
     content: str
@@ -110,6 +121,7 @@ class ExecutionStepData(BaseModel):
     tokens_output: int = 0
     latency_ms: float = 0.0
     tool_call: Optional[ToolCallData] = None
+    llm_call: Optional[LLMCallInfoData] = None
     metadata: dict = {}
     status: str = "pending"
     # Enhanced monitoring fields

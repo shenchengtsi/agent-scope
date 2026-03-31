@@ -57,6 +57,31 @@ class ToolCall:
         }
 
 
+@dataclass
+class LLMCallInfo:
+    """Represents an LLM API call."""
+    id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
+    prompt: str = ""
+    completion: str = ""
+    model: str = "default"
+    tokens_input: int = 0
+    tokens_output: int = 0
+    latency_ms: float = 0.0
+    cost: float = 0.0
+    
+    def to_dict(self) -> Dict:
+        return {
+            "id": self.id,
+            "prompt": self.prompt,
+            "completion": self.completion,
+            "model": self.model,
+            "tokens_input": self.tokens_input,
+            "tokens_output": self.tokens_output,
+            "latency_ms": self.latency_ms,
+            "cost": self.cost,
+        }
+
+
 # =============================================================================
 # Enhanced Monitoring Data Models
 # =============================================================================
@@ -215,6 +240,7 @@ class ExecutionStep:
     tokens_output: int = 0
     latency_ms: float = 0.0
     tool_call: Optional[ToolCall] = None
+    llm_call: Optional[LLMCallInfo] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     status: Status = Status.PENDING
     
@@ -244,6 +270,7 @@ class ExecutionStep:
             "tokens_output": self.tokens_output,
             "latency_ms": self.latency_ms,
             "tool_call": self.tool_call.to_dict() if self.tool_call else None,
+            "llm_call": self.llm_call.to_dict() if self.llm_call else None,
             "metadata": self.metadata,
             "status": self.status.value,
             # Enhanced fields
