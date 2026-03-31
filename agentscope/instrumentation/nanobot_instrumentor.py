@@ -126,6 +126,23 @@ def _instrument_agent_loop(agent_loop_class):
         user_id = getattr(msg, 'user_id', 'unknown')
         channel = getattr(msg, 'channel', 'unknown')
 
+        # Buffer to collect streaming content
+        stream_content_parts = []
+        
+        # Wrap on_stream callback to capture streaming content
+        original_on_stream = on_stream
+        async def wrapped_on_stream(content):
+            if content:
+                stream_content_parts.append(str(content))
+            if original_on_stream:
+                await original_on_stream(content)
+        
+        # Wrap on_stream_end callback
+        original_on_stream_end = on_stream_end
+        async def wrapped_on_stream_end():
+            if original_on_stream_end:
+                await original_on_stream_end()
+
         # Create trace context
         with trace_scope(
             name=f"nanobot:{channel}",
@@ -133,19 +150,47 @@ def _instrument_agent_loop(agent_loop_class):
             tags=["nanobot", channel, f"user:{user_id}"]
         ) as trace:
             # Execute and capture result
-            result = await original_process_message(self, msg, session_key, on_progress, on_stream=on_stream, on_stream_end=on_stream_end)
+            result = await original_process_message(
+                self, msg, session_key, on_progress,
+                on_stream=wrapped_on_stream if on_stream else None,
+                on_stream_end=wrapped_on_stream_end if on_stream_end else None
+            )
             
-            # Add output step if we have a result
+            # Determine output content
+            output_content = None
+            
+            # Case 1: Result has explicit content
             if result:
-                output_content = ""
                 if hasattr(result, 'content') and result.content:
-                    output_content = result.content[:1000]
+                    output_content = result.content[:2000]
                 elif hasattr(result, 'text') and result.text:
-                    output_content = result.text[:1000]
+                    output_content = result.text[:2000]
                 else:
-                    output_content = str(result)[:1000]
-                
+                    output_str = str(result)
+                    if output_str and output_str != 'None':
+                        output_content = output_str[:2000]
+            
+            # Case 2: Stream content was captured
+            if not output_content and stream_content_parts:
+                output_content = ''.join(stream_content_parts)[:2000]
+            
+            # Case 3: Try to infer from last tool call (e.g., message tool)
+            if not output_content:
+                from ..monitor import get_current_trace
+                current_trace = get_current_trace()
+                if current_trace and current_trace.steps:
+                    last_step = current_trace.steps[-1]
+                    if last_step.type == StepType.TOOL_CALL and last_step.tool_call:
+                        tool_name = last_step.tool_call.name
+                        if tool_name == 'message':
+                            output_content = f"[Response sent via {tool_name} tool]"
+            
+            # Record output step if we have content
+            if output_content:
                 add_step(StepType.OUTPUT, output_content)
+            else:
+                # Record a placeholder to indicate completion
+                add_step(StepType.OUTPUT, "[Response completed]")
             
             return result
     
