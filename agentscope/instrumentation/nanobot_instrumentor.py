@@ -117,15 +117,15 @@ def _instrument_agent_loop(agent_loop_class):
     original_process_message = agent_loop_class._process_message
     
     @functools.wraps(original_process_message)
-    async def monitored_process_message(self, msg, session_key=None, on_progress=None):
+    async def monitored_process_message(self, msg, session_key=None, on_progress=None, on_stream=None, on_stream_end=None):
         # Skip system channels
         if hasattr(msg, 'channel') and msg.channel in ("system", "inter_agent"):
-            return await original_process_message(self, msg, session_key, on_progress)
-        
+            return await original_process_message(self, msg, session_key, on_progress, on_stream=on_stream, on_stream_end=on_stream_end)
+
         # Extract user info for better trace naming
         user_id = getattr(msg, 'user_id', 'unknown')
         channel = getattr(msg, 'channel', 'unknown')
-        
+
         # Create trace context
         with trace_scope(
             name=f"nanobot:{channel}",
@@ -133,7 +133,7 @@ def _instrument_agent_loop(agent_loop_class):
             tags=["nanobot", channel, f"user:{user_id}"]
         ) as trace:
             # Execute and capture result
-            result = await original_process_message(self, msg, session_key, on_progress)
+            result = await original_process_message(self, msg, session_key, on_progress, on_stream=on_stream, on_stream_end=on_stream_end)
             
             # Add output step if we have a result
             if result:
@@ -162,9 +162,9 @@ def _instrument_provider_calls(agent_loop_class):
     original_run_agent_loop = agent_loop_class._run_agent_loop
     
     @functools.wraps(original_run_agent_loop)
-    async def monitored_run_agent_loop(self, initial_messages, on_progress=None):
+    async def monitored_run_agent_loop(self, initial_messages, on_progress=None, on_stream=None, on_stream_end=None, **kwargs):
         start_time = time.time()
-        
+
         # Record tool selection (available tools)
         try:
             if hasattr(self, 'tools') and self.tools:
@@ -192,7 +192,7 @@ def _instrument_provider_calls(agent_loop_class):
         
         try:
             # Execute the loop
-            result = await original_run_agent_loop(self, initial_messages, on_progress=on_progress)
+            result = await original_run_agent_loop(self, initial_messages, on_progress=on_progress, on_stream=on_stream, on_stream_end=on_stream_end, **kwargs)
             
             # Calculate metrics
             latency_ms = (time.time() - start_time) * 1000
