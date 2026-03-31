@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
-import Header from '../components/Header';
-import TraceList from '../components/TraceList';
+import TraceListWithFilters from '../components/TraceListWithFilters';
 import TraceTimeline from '../components/TraceTimeline';
 import WorkflowVisualizer from '../components/WorkflowVisualizer';
 import StepDetail from '../components/StepDetail';
@@ -69,12 +68,6 @@ function Dashboard() {
 
   return (
     <div style={styles.container}>
-      <Header 
-        isConnected={isConnected} 
-        tracesCount={traces.length}
-        onClearAll={clearAllTraces}
-      />
-      
       {/* Metrics Cards */}
       <MetricsCards traces={traces} />
       
@@ -117,7 +110,7 @@ function Dashboard() {
               </button>
             )}
           </div>
-          <TraceList 
+          <TraceListWithFilters 
             traces={traces}
             selectedTrace={compareMode ? null : selectedTrace}
             onSelectTrace={handleSelectTrace}
