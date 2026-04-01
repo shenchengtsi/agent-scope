@@ -349,6 +349,8 @@ def _instrument_agent_runner(agent_runner_class):
         # Track iteration count
         iteration_count = 0
         all_tools_used = []
+        successful_tool_calls = 0
+        failed_tool_calls = 0
         
         # Store original provider methods
         original_chat_with_retry = self.provider.chat_with_retry
@@ -388,9 +390,41 @@ def _instrument_agent_runner(agent_runner_class):
             logger.debug(f"AgentScope: Starting agent run with monitoring")
             result = await original_run(self, spec)
             
+            # Unpack result
+            final_content, tools_used, all_messages = result
+            
+            # Count successful/failed tool calls by analyzing steps
+            for step in trace.steps if trace else []:
+                if step.type == StepType.TOOL_CALL and step.tool_call:
+                    # Check if tool call has error
+                    if step.tool_call.error:
+                        failed_tool_calls += 1
+                    else:
+                        successful_tool_calls += 1
+            
+            # Determine completion status
+            completion_status = "success"
+            if trace and trace.status == Status.ERROR:
+                completion_status = "failed"
+            elif iteration_count >= spec.max_iterations:
+                completion_status = "timeout"
+            
+            # Update trace evaluation metrics
+            if trace:
+                trace.iteration_count = iteration_count
+                trace.successful_tool_calls = successful_tool_calls
+                trace.failed_tool_calls = failed_tool_calls
+                trace.completion_status = completion_status
+                logger.info(f"AgentScope: Updated evaluation metrics - "
+                           f"iterations={iteration_count}, "
+                           f"successful_tools={successful_tool_calls}, "
+                           f"failed_tools={failed_tool_calls}, "
+                           f"status={completion_status}")
+            
             # Record summary
             logger.info(f"AgentScope: Agent loop completed with {iteration_count} iterations, "
-                       f"{len(all_tools_used)} tool calls")
+                       f"{len(all_tools_used)} tool calls, "
+                       f"status={completion_status}")
             
             return result
             

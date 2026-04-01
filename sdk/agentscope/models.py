@@ -314,6 +314,12 @@ class TraceEvent:
     context_window_usage: float = 0.0  # 上下文窗口使用率（0-1）
     llm_call_count: int = 0
     tool_call_count: int = 0
+    
+    # Agent evaluation metrics (v0.6.0)
+    iteration_count: int = 0  # 决策迭代次数
+    successful_tool_calls: int = 0  # 成功工具调用数
+    failed_tool_calls: int = 0  # 失败工具调用数
+    completion_status: str = "pending"  # pending/success/failed/timeout
 
     def add_step(self, step: ExecutionStep):
         """Add a step to the trace."""
@@ -360,6 +366,11 @@ class TraceEvent:
             "context_window_usage": self.context_window_usage,
             "llm_call_count": self.llm_call_count,
             "tool_call_count": self.tool_call_count,
+            # Agent evaluation metrics (v0.6.0)
+            "iteration_count": self.iteration_count,
+            "successful_tool_calls": self.successful_tool_calls,
+            "failed_tool_calls": self.failed_tool_calls,
+            "completion_status": self.completion_status,
         }
 
     def to_json(self) -> str:

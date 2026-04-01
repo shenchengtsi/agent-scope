@@ -51,7 +51,12 @@ class SQLiteStorage(BaseStorage):
                         total_latency_ms REAL DEFAULT 0.0,
                         cost_estimate REAL DEFAULT 0.0,
                         llm_call_count INTEGER DEFAULT 0,
-                        tool_call_count INTEGER DEFAULT 0
+                        tool_call_count INTEGER DEFAULT 0,
+                        -- Agent evaluation metrics (v0.6.0)
+                        iteration_count INTEGER DEFAULT 0,
+                        successful_tool_calls INTEGER DEFAULT 0,
+                        failed_tool_calls INTEGER DEFAULT 0,
+                        completion_status TEXT DEFAULT 'pending'
                     )
                 """)
                 
@@ -89,8 +94,9 @@ class SQLiteStorage(BaseStorage):
                     INSERT OR REPLACE INTO traces 
                     (id, name, status, start_time, end_time, duration_ms,
                      input_query, tags, metadata, steps, child_trace_ids, parent_trace_id,
-                     total_tokens, total_latency_ms, cost_estimate, llm_call_count, tool_call_count)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     total_tokens, total_latency_ms, cost_estimate, llm_call_count, tool_call_count,
+                     iteration_count, successful_tool_calls, failed_tool_calls, completion_status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         trace_id,
@@ -110,6 +116,11 @@ class SQLiteStorage(BaseStorage):
                         trace.get("cost_estimate", 0.0),
                         trace.get("llm_call_count", 0),
                         trace.get("tool_call_count", 0),
+                        # Agent evaluation metrics (v0.6.0)
+                        trace.get("iteration_count", 0),
+                        trace.get("successful_tool_calls", 0),
+                        trace.get("failed_tool_calls", 0),
+                        trace.get("completion_status", "pending"),
                     )
                 )
                 conn.commit()

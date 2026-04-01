@@ -29,6 +29,115 @@ from storage_manager import get_storage, health_check, reset_storage
 connected_websockets: List[WebSocket] = []
 
 
+@app.get("/api/analytics/agent-evaluation")
+async def get_agent_evaluation_metrics(
+    hours: int = Query(24, ge=1, le=168),
+    group_by: str = Query("name", pattern="^(name|status|tag)$"),
+):
+    """Get Agent evaluation metrics.
+    
+    Returns metrics for evaluating Agent performance including:
+    - Task completion rate
+    - Average iteration count
+    - Tool call success rate
+    - Average task duration
+    """
+    storage = get_storage()
+    
+    # Calculate time range
+    end_time = datetime.utcnow()
+    start_time = end_time - timedelta(hours=hours)
+    
+    # Get traces in range
+    traces = storage.list_traces(
+        limit=10000,
+        start_time=start_time,
+        end_time=end_time,
+    )
+    
+    if not traces:
+        return {
+            "time_range_hours": hours,
+            "total_traces": 0,
+            "metrics": {
+                "task_completion_rate": 0.0,
+                "avg_iteration_count": 0.0,
+                "tool_success_rate": 0.0,
+                "avg_duration_ms": 0.0,
+                "avg_token_count": 0.0,
+            },
+            "breakdown": []
+        }
+    
+    # Calculate overall metrics
+    total = len(traces)
+    successful = sum(1 for t in traces if t.get("completion_status") == "success")
+    
+    iteration_counts = [t.get("iteration_count", 0) for t in traces]
+    successful_tools = sum(t.get("successful_tool_calls", 0) for t in traces)
+    failed_tools = sum(t.get("failed_tool_calls", 0) for t in traces)
+    durations = [t.get("total_latency_ms", 0) for t in traces]
+    tokens = [t.get("total_tokens", 0) for t in traces]
+    
+    total_tool_calls = successful_tools + failed_tools
+    
+    metrics = {
+        "task_completion_rate": successful / total if total > 0 else 0.0,
+        "avg_iteration_count": sum(iteration_counts) / total if total > 0 else 0.0,
+        "tool_success_rate": successful_tools / total_tool_calls if total_tool_calls > 0 else 0.0,
+        "avg_duration_ms": sum(durations) / len(durations) if durations else 0.0,
+        "avg_token_count": sum(tokens) / len(tokens) if tokens else 0.0,
+    }
+    
+    # Calculate breakdown by group
+    breakdown = []
+    if group_by == "name":
+        grouped = {}
+        for trace in traces:
+            name = trace.get("name", "Unknown")
+            if name not in grouped:
+                grouped[name] = {
+                    "name": name,
+                    "count": 0,
+                    "successful": 0,
+                    "iterations": [],
+                    "successful_tools": 0,
+                    "failed_tools": 0,
+                    "durations": [],
+                    "tokens": [],
+                }
+            grouped[name]["count"] += 1
+            if trace.get("completion_status") == "success":
+                grouped[name]["successful"] += 1
+            grouped[name]["iterations"].append(trace.get("iteration_count", 0))
+            grouped[name]["successful_tools"] += trace.get("successful_tool_calls", 0)
+            grouped[name]["failed_tools"] += trace.get("failed_tool_calls", 0)
+            grouped[name]["durations"].append(trace.get("total_latency_ms", 0))
+            grouped[name]["tokens"].append(trace.get("total_tokens", 0))
+        
+        for name, data in grouped.items():
+            total_tools = data["successful_tools"] + data["failed_tools"]
+            breakdown.append({
+                "name": name,
+                "trace_count": data["count"],
+                "completion_rate": data["successful"] / data["count"] if data["count"] > 0 else 0.0,
+                "avg_iterations": sum(data["iterations"]) / len(data["iterations"]) if data["iterations"] else 0.0,
+                "tool_success_rate": data["successful_tools"] / total_tools if total_tools > 0 else 0.0,
+                "avg_duration_ms": sum(data["durations"]) / len(data["durations"]) if data["durations"] else 0.0,
+                "avg_tokens": sum(data["tokens"]) / len(data["tokens"]) if data["tokens"] else 0.0,
+            })
+    
+    # Sort by trace count descending
+    breakdown.sort(key=lambda x: x["trace_count"], reverse=True)
+    
+    return {
+        "time_range_hours": hours,
+        "total_traces": total,
+        "metrics": metrics,
+        "breakdown": breakdown[:20],  # Top 20
+    }
+
+
 # ============================================================================
 # Data Models
 # ============================================================================
@@ -154,6 +263,11 @@ class TraceData(BaseModel):
     tool_call_count: int = 0
     parent_trace_id: Optional[str] = None
     child_trace_ids: List[str] = []
+    # Agent evaluation metrics (v0.6.0)
+    iteration_count: int = 0  # 决策迭代次数
+    successful_tool_calls: int = 0  # 成功工具调用数
+    failed_tool_calls: int = 0  # 失败工具调用数
+    completion_status: str = "pending"  # pending/success/failed/timeout
 
 
 class CompareRequest(BaseModel):
